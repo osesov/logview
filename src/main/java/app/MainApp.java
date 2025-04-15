@@ -87,8 +87,8 @@ public class MainApp extends Application {
             AppSettings.saveDividerPosition(middleArea.getDividerPositions()[0]);
             AppSettings.saveWindowBounds(primaryStage.getX(), primaryStage.getY(), primaryStage.getWidth(), primaryStage.getHeight());
             filterController.saveRulesToPreferences(mapper);
-            filterController.saveColumnWidths(mapper);
-            tableController.saveColumnWidths(mapper);
+            filterController.saveColumnLayout(mapper);
+            tableController.saveColumnLayout(mapper);
             double dividers[] = tablePane.getDividerPositions();
             if (dividers.length > 0)
                 AppSettings.saveFilterDividerPosition(dividers[0]);
@@ -213,8 +213,8 @@ public class MainApp extends Application {
         });
 
         filterController.loadRulesFromPreferences(mapper);
-        filterController.loadColumnWidths(mapper);
-        tableController.loadColumnWidths(mapper);
+        filterController.loadColumnLayout(mapper);
+        tableController.loadColumnLayout(mapper);
 
         return splitPane;
     }

@@ -303,38 +303,11 @@ public class FilterViewController {
         this.onRulesChanged = callback;
     }
 
-    public void saveColumnWidths(ObjectMapper mapper) {
-        Map<String, Double> widths = new HashMap<>();
-        for (TableColumn<?, ?> col : table.getColumns()) {
-            if (col.prefWidthProperty().isBound())
-                continue;
-            widths.put(col.getText(), col.getWidth());
-        }
-
-        try {
-            String json = mapper.writeValueAsString(widths);
-            AppSettings.saveFilterColumnWidths(json);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+    public void saveColumnLayout(ObjectMapper mapper) {
+        TableColumnLayoutUtil.saveColumnLayout(table, "filterColumns", mapper);
     }
 
-    public void loadColumnWidths(ObjectMapper mapper) {
-        String json = AppSettings.loadFilterColumnWidths();
-        if (json == null || json.isEmpty()) return;
-
-        try {
-            Map<String, Double> widths = mapper.readValue(json, new TypeReference<>() {});
-            for (TableColumn<?, ?> col : table.getColumns()) {
-                Double w = widths.get(col.getText());
-                if (w == null) continue;
-                if (col.prefWidthProperty().isBound())
-                    continue;
-                col.setPrefWidth(w);
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+    public void loadColumnLayout(ObjectMapper mapper) {
+        TableColumnLayoutUtil.loadColumnLayout(table, "filterColumns", mapper);
     }
-
 }

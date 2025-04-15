@@ -55,14 +55,6 @@ public class AppSettings {
         return prefs.getDouble("filterDivider", fallback);
     }
 
-    public static void saveFilterColumnWidths(String json) {
-        prefs.put("filterColumnWidths", json);
-    }
-
-    public static String loadFilterColumnWidths() {
-        return prefs.get("filterColumnWidths", "");
-    }
-
     public static void saveTableColumnWidths(String json) {
         prefs.put("tableColumnWidths", json);
     }
@@ -70,4 +62,13 @@ public class AppSettings {
     public static String loadTableColumnWidths() {
         return prefs.get("tableColumnWidths", "");
     }
+
+    public static void saveColumnLayout(String key, String json) {
+        prefs.put(key, json);
+    }
+
+    public static String loadColumnLayout(String key) {
+        return prefs.get(key, "");
+    }
+
 }

@@ -288,42 +288,14 @@ public class TableViewController {
         return Color.color(1.0 - color.getRed(), 1.0 - color.getGreen(), 1.0 - color.getBlue(), color.getOpacity());
     }
 
-    public void saveColumnWidths(ObjectMapper mapper) {
-        Map<String, Double> widths = new HashMap<>();
-        for (TableColumn<?, ?> col : table.getColumns()) {
-            if (col.prefWidthProperty().isBound())
-                continue;
-
-            widths.put(col.getText(), col.getWidth());
-        }
-
-        try {
-            String json = mapper.writeValueAsString(widths);
-            AppSettings.saveTableColumnWidths(json);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+    public void saveColumnLayout(ObjectMapper mapper) {
+        TableColumnLayoutUtil.saveColumnLayout(table, "filterColumns", mapper);
     }
 
-    public void loadColumnWidths(ObjectMapper mapper) {
-        String json = AppSettings.loadTableColumnWidths();
-        if (json == null || json.isEmpty()) return;
-
-        try {
-            Map<String, Double> widths = mapper.readValue(json, new TypeReference<>() {});
-            for (TableColumn<?, ?> col : table.getColumns()) {
-                Double w = widths.get(col.getText());
-                if (w == null)
-                    continue;
-                if (col.prefWidthProperty().isBound())
-                    continue;
-
-                col.setPrefWidth(w);
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+    public void loadColumnLayout(ObjectMapper mapper) {
+        TableColumnLayoutUtil.loadColumnLayout(table, "filterColumns", mapper);
     }
+
 
     public void selectNextMatch() {
 
