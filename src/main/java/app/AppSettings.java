@@ -36,4 +36,30 @@ public class AppSettings {
     public static String loadLastOpenedFile() {
         return prefs.get("lastFile", null);
     }
+
+    private static final String FILTER_KEY = "filterRules";
+
+    public static void saveFilterRules(String json) {
+        prefs.put(FILTER_KEY, json);
+    }
+
+    public static String loadFilterRules() {
+        return prefs.get(FILTER_KEY, "");
+    }
+
+    public static void saveFilterDividerPosition(double pos) {
+        prefs.putDouble("filterDivider", pos);
+    }
+
+    public static double loadFilterDividerPosition(double fallback) {
+        return prefs.getDouble("filterDivider", fallback);
+    }
+
+    public static void saveFilterColumnWidths(String json) {
+        prefs.put("filterColumnWidths", json);
+    }
+
+    public static String loadFilterColumnWidths() {
+        return prefs.get("filterColumnWidths", "");
+    }
 }

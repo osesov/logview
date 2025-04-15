@@ -7,9 +7,12 @@ import java.util.List;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import app.FilterViewController.FilterRule;
 import javafx.application.Application;
+import javafx.collections.ListChangeListener;
 import javafx.geometry.Orientation;
 import javafx.geometry.Insets;
+import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
@@ -20,6 +23,7 @@ import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 
@@ -29,69 +33,24 @@ public class MainApp extends Application {
     private ObjectMapper mapper = new ObjectMapper();
     private TreeViewController treeController = new TreeViewController(this.mapper);
     private TableViewController tableController = new TableViewController(this.mapper, treeController);
+    private FilterViewController filterController = new FilterViewController();
     private TextField searchField = new TextField();
     private Label statusBar = new Label("Ready");
+    private SplitPane tablePane;
     private JsonLineReader jsonLineReader;
 
     @Override
     public void start(Stage primaryStage) {
         BorderPane root = new BorderPane();
 
-        Button openButton = new Button("Open JSONL File");
-        openButton.setOnAction(e -> openFile(primaryStage));
+        Node topBarContainer = this.buildToolBar(primaryStage);
+        Node statusContainer = this.buildStatusBar();
+        SplitPane middleArea = this.buildMiddleArea();
 
-        // # top bar
-        HBox topBar = new HBox(openButton);
-        topBar.setSpacing(10);
-        topBar.setPadding(new Insets(5));
-
-        // ## go to row button
-        TextField goToField = new TextField();
-        goToField.setPromptText("Go to row #");
-        goToField.setPrefWidth(100);
-        topBar.getChildren().add(goToField);
-        goToField.setOnAction(e -> {
-            try {
-                int row = Integer.parseInt(goToField.getText());
-                tableController.scrollToRow(row - 1);
-                goToField.clear();
-            } catch (Exception ignored) {}
-        });
-
-        // ## search field
-        searchField.setPromptText("Search (key or value)...");
-        searchField.textProperty().addListener((obs, oldVal, newVal) -> {
-            tableController.setFilter(newVal);
-        });
-        topBar.getChildren().add(searchField);
-        searchField.setOnKeyPressed(ev -> {
-            if (ev.getCode() == KeyCode.ESCAPE) {
-                searchField.clear();
-                tableController.focus();  // implement this to call table.requestFocus()
-            }
-        });
-
-        // it takes the rest of the space
-        HBox.setHgrow(searchField, Priority.ALWAYS);
-        searchField.setMaxWidth(Double.MAX_VALUE);
-
-        // # middle area
-        SplitPane splitPane = new SplitPane();
-        splitPane.setOrientation(Orientation.VERTICAL);
-        splitPane.getItems().addAll(
-            tableController.getView(),
-            treeController.getView()
-        );
-        splitPane.setDividerPositions(AppSettings.loadDividerPosition(0.5));
-
-        // # status bar
-        HBox statusContainer = new HBox(statusBar);
-        statusContainer.setPadding(new Insets(5));
-        statusContainer.setStyle("-fx-background-color: #eeeeee; -fx-border-color: #cccccc;");
 
         // # set up the main layout
-        root.setTop(topBar);
-        root.setCenter(splitPane);
+        root.setTop(topBarContainer);
+        root.setCenter(middleArea);
         root.setBottom(statusContainer);
 
         // load app settings
@@ -125,9 +84,126 @@ public class MainApp extends Application {
 
         // save state on exit
         primaryStage.setOnCloseRequest(e -> {
-            AppSettings.saveDividerPosition(splitPane.getDividerPositions()[0]);
+            AppSettings.saveDividerPosition(middleArea.getDividerPositions()[0]);
             AppSettings.saveWindowBounds(primaryStage.getX(), primaryStage.getY(), primaryStage.getWidth(), primaryStage.getHeight());
+            filterController.saveRulesToPreferences(mapper);
+            filterController.saveColumnWidths(mapper);
+            AppSettings.saveFilterDividerPosition(tablePane.getDividerPositions()[0]);
         });
+
+        tableController.applyFilters(filterController.getRules());
+    }
+
+    private Node buildToolBar(Stage primaryStage)
+    {
+        // # top bar
+        Button openButton = new Button("Open JSONL File");
+        openButton.setOnAction(e -> openFile(primaryStage));
+
+
+        HBox topBarContainer = new HBox(openButton);
+        topBarContainer.setSpacing(10);
+        topBarContainer.setPadding(new Insets(5));
+
+        // ## go to row button
+        TextField goToField = new TextField();
+        goToField.setPromptText("Go to row #");
+        goToField.setPrefWidth(100);
+        topBarContainer.getChildren().add(goToField);
+        goToField.setOnAction(e -> {
+            try {
+                int row = Integer.parseInt(goToField.getText());
+                tableController.scrollToRow(row - 1);
+                goToField.clear();
+            } catch (Exception ignored) {}
+        });
+
+        // ## search field
+        searchField.setPromptText("Search (key or value)...");
+        searchField.textProperty().addListener((obs, oldVal, newVal) -> {
+            tableController.setSearchString(newVal);
+        });
+        topBarContainer.getChildren().add(searchField);
+        searchField.setOnKeyPressed(ev -> {
+            if (ev.getCode() == KeyCode.ESCAPE) {
+                searchField.clear();
+                tableController.focus();  // implement this to call table.requestFocus()
+            }
+        });
+
+        // it takes the rest of the space
+        HBox.setHgrow(searchField, Priority.ALWAYS);
+        searchField.setMaxWidth(Double.MAX_VALUE);
+
+        // filter button
+        VBox filterView = filterController.getView();
+
+        Button toggleFilter = new Button("Filters »");
+        topBarContainer.getChildren().add(toggleFilter);
+
+        // show/hide filters
+        toggleFilter.setOnAction(e -> {
+            if (tablePane.getItems().contains(filterView)) {
+                tablePane.getItems().remove(filterView);
+                AppSettings.saveFilterDividerPosition(tablePane.getDividerPositions()[0]);
+
+                toggleFilter.setText("Filters »");
+            } else {
+                tablePane.getItems().add(filterView);
+                tablePane.setDividerPositions(AppSettings.loadFilterDividerPosition(0.66));
+                toggleFilter.setText("« Hide Filters");
+            }
+        });
+
+        filterController.loadRulesFromPreferences(mapper);
+        filterController.loadColumnWidths(mapper);
+
+        return topBarContainer;
+    }
+
+    private Node buildStatusBar()
+    {
+        // # status bar
+        HBox statusContainer = new HBox(statusBar);
+        statusContainer.setPadding(new Insets(5));
+        statusContainer.setStyle("-fx-background-color: #eeeeee; -fx-border-color: #cccccc;");
+
+        return statusContainer;
+    }
+
+    private SplitPane buildMiddleArea()
+    {
+        // ## Table/Filter area
+        tablePane = new SplitPane();
+        tablePane.setOrientation(Orientation.HORIZONTAL);
+        tablePane.getItems().addAll(tableController.getView() /* filterView hidden by default */);
+        tablePane.setDividerPositions(1.0); // full width to TableView initially
+
+
+        SplitPane splitPane = new SplitPane();
+        splitPane.setOrientation(Orientation.VERTICAL);
+        splitPane.getItems().addAll(
+            tablePane, // tableController.getView(),
+            treeController.getView()
+        );
+        splitPane.setDividerPositions(AppSettings.loadDividerPosition(0.5));
+
+        // apply filters when cells are edited
+        filterController.setOnRulesChanged(() -> {
+            tableController.applyFilters(filterController.getRules());
+        });
+
+        // apply filters when a rule is added or removes
+        filterController.getRules().addListener((ListChangeListener<? super FilterRule>) c -> {
+            tableController.applyFilters(filterController.getRules());
+        });
+
+        // apply filters when search field is changed
+        searchField.textProperty().addListener((obs, oldVal, newVal) -> {
+            tableController.applyFilters(filterController.getRules());
+        });
+
+        return splitPane;
     }
 
     private void openFile(Stage stage) {

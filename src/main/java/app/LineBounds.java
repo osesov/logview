@@ -3,10 +3,12 @@ package app;
 public class LineBounds {
     private int start;
     private int end;
+    private int index;
 
-    public LineBounds(int start, int end) {
+    public LineBounds(int start, int end, int index) {
         this.start = start;
         this.end = end;
+        this.index = index;
     }
 
     public int getStart() {
@@ -17,11 +19,16 @@ public class LineBounds {
         return end;
     }
 
+    public int getIndex() {
+        return index;
+    }
+
     @Override
     public String toString() {
         return "LineBounds{" +
                 "start=" + start +
                 ", end=" + end +
+                ", index=" + index +
                 '}';
     }
 }
