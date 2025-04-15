@@ -1,0 +1,17 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "java",
+            "name": "MainApp",
+            "request": "launch",
+            "mainClass": "app.MainApp",
+            "projectName": "jsonl-viewer-javafx",
+            "vmArgs": "--add-modules javafx.controls --module-path ${workspaceFolder}/target/dependency",
+            "preLaunchTask": "compile"
+        },
+    ]
+}
