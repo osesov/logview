@@ -306,6 +306,8 @@ public class FilterViewController {
     public void saveColumnWidths(ObjectMapper mapper) {
         Map<String, Double> widths = new HashMap<>();
         for (TableColumn<?, ?> col : table.getColumns()) {
+            if (col.prefWidthProperty().isBound())
+                continue;
             widths.put(col.getText(), col.getWidth());
         }
 
@@ -325,8 +327,10 @@ public class FilterViewController {
             Map<String, Double> widths = mapper.readValue(json, new TypeReference<>() {});
             for (TableColumn<?, ?> col : table.getColumns()) {
                 Double w = widths.get(col.getText());
-                if (w != null)
-                    col.setPrefWidth(w);
+                if (w == null) continue;
+                if (col.prefWidthProperty().isBound())
+                    continue;
+                col.setPrefWidth(w);
             }
         } catch (Exception e) {
             e.printStackTrace();

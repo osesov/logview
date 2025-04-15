@@ -88,7 +88,10 @@ public class MainApp extends Application {
             AppSettings.saveWindowBounds(primaryStage.getX(), primaryStage.getY(), primaryStage.getWidth(), primaryStage.getHeight());
             filterController.saveRulesToPreferences(mapper);
             filterController.saveColumnWidths(mapper);
-            AppSettings.saveFilterDividerPosition(tablePane.getDividerPositions()[0]);
+            tableController.saveColumnWidths(mapper);
+            double dividers[] = tablePane.getDividerPositions();
+            if (dividers.length > 0)
+                AppSettings.saveFilterDividerPosition(dividers[0]);
         });
 
         tableController.applyFilters(filterController.getRules());
@@ -129,6 +132,15 @@ public class MainApp extends Application {
                 searchField.clear();
                 tableController.focus();  // implement this to call table.requestFocus()
             }
+
+            if (ev.getCode() == KeyCode.ENTER && ev.isControlDown()) {
+                tableController.focus();
+            }
+
+            if (ev.getCode() == KeyCode.ENTER && !ev.isControlDown() && !ev.isAltDown()) {
+                tableController.selectNextMatch();
+            }
+
         });
 
         // it takes the rest of the space
@@ -154,9 +166,6 @@ public class MainApp extends Application {
                 toggleFilter.setText("« Hide Filters");
             }
         });
-
-        filterController.loadRulesFromPreferences(mapper);
-        filterController.loadColumnWidths(mapper);
 
         return topBarContainer;
     }
@@ -202,6 +211,10 @@ public class MainApp extends Application {
         searchField.textProperty().addListener((obs, oldVal, newVal) -> {
             tableController.applyFilters(filterController.getRules());
         });
+
+        filterController.loadRulesFromPreferences(mapper);
+        filterController.loadColumnWidths(mapper);
+        tableController.loadColumnWidths(mapper);
 
         return splitPane;
     }

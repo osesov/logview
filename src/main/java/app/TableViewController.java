@@ -6,11 +6,13 @@ import java.util.List;
 import java.util.Map;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import app.FilterViewController.FilterRule;
+import javafx.beans.property.ReadOnlyLongWrapper;
 import javafx.beans.property.ReadOnlyStringWrapper;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -18,7 +20,6 @@ import javafx.collections.transformation.FilteredList;
 import javafx.geometry.Insets;
 import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
-import javafx.scene.control.TableRow;
 import javafx.scene.control.TableView;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
@@ -41,11 +42,12 @@ public class TableViewController {
         this.mapper = mapper;
         this.treeController = treeController;
 
-        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+        // table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
 
-        // TableColumn<String, String> keyColumn = new TableColumn<>("Key");
-        // keyColumn.setCellValueFactory(param -> new ReadOnlyStringWrapper(param.getValue().getKey()));
-        // table.getColumns().add(keyColumn);
+        TableColumn<LineBounds, Long> numberColumn = new TableColumn<>("#");
+        numberColumn.setCellValueFactory(param -> new ReadOnlyLongWrapper(param.getValue().getIndex() + 1).asObject());
+        // levelColumn.prefWidthProperty().bind(table.widthProperty().subtract(2));
+        table.getColumns().add(numberColumn);
 
         TableColumn<LineBounds, String> levelColumn = new TableColumn<>("Level");
         levelColumn.setCellValueFactory(param -> new ReadOnlyStringWrapper(this.getField(param.getValue(), "level")));
@@ -120,21 +122,25 @@ public class TableViewController {
 
         table.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
             table.refresh();  // force colors re-evaluation
+            if (newVal != null) {
+                String rowData = this.getString(newVal);
+                treeController.addObject(rowData);
+            }
         });
 
         // table.setItems(entries);
         table.setItems(filteredEntries);
 
-        table.setRowFactory(tv -> {
-            TableRow<LineBounds> row = new TableRow<>();
-            row.setOnMouseClicked(event -> {
-                if (!row.isEmpty()) {
-                    String rowData = this.getString(row.getItem());
-                    treeController.addObject(rowData);
-                }
-            });
-            return row;
-        });
+        // table.setRowFactory(tv -> {
+        //     TableRow<LineBounds> row = new TableRow<>();
+        //     row.setOnMouseClicked(event -> {
+        //         if (!row.isEmpty()) {
+        //             String rowData = this.getString(row.getItem());
+        //             treeController.addObject(rowData);
+        //         }
+        //     });
+        //     return row;
+        // });
     }
 
     public void setSearchString(String query) {
@@ -282,4 +288,63 @@ public class TableViewController {
         return Color.color(1.0 - color.getRed(), 1.0 - color.getGreen(), 1.0 - color.getBlue(), color.getOpacity());
     }
 
+    public void saveColumnWidths(ObjectMapper mapper) {
+        Map<String, Double> widths = new HashMap<>();
+        for (TableColumn<?, ?> col : table.getColumns()) {
+            if (col.prefWidthProperty().isBound())
+                continue;
+
+            widths.put(col.getText(), col.getWidth());
+        }
+
+        try {
+            String json = mapper.writeValueAsString(widths);
+            AppSettings.saveTableColumnWidths(json);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void loadColumnWidths(ObjectMapper mapper) {
+        String json = AppSettings.loadTableColumnWidths();
+        if (json == null || json.isEmpty()) return;
+
+        try {
+            Map<String, Double> widths = mapper.readValue(json, new TypeReference<>() {});
+            for (TableColumn<?, ?> col : table.getColumns()) {
+                Double w = widths.get(col.getText());
+                if (w == null)
+                    continue;
+                if (col.prefWidthProperty().isBound())
+                    continue;
+
+                col.setPrefWidth(w);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void selectNextMatch() {
+
+        if (searchTerm == null || searchTerm.isEmpty())
+            return;
+
+        int startIndex = table.getSelectionModel().getSelectedIndex();
+        int rowCount = table.getItems().size();
+
+        for (int i = 1; i <= rowCount; i++) {
+            int currentIndex = (startIndex + i) % rowCount;
+            LineBounds row = table.getItems().get(currentIndex);
+            if (row == null) continue;
+
+            String rowData = this.getString(row);
+            if (rowData.toLowerCase().contains(searchTerm.toLowerCase())) {
+                table.getSelectionModel().clearAndSelect(currentIndex);
+                table.scrollTo(currentIndex);
+                // table.requestFocus();
+                break;
+            }
+        }
+    }
 }

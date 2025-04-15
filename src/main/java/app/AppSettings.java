@@ -62,4 +62,12 @@ public class AppSettings {
     public static String loadFilterColumnWidths() {
         return prefs.get("filterColumnWidths", "");
     }
+
+    public static void saveTableColumnWidths(String json) {
+        prefs.put("tableColumnWidths", json);
+    }
+
+    public static String loadTableColumnWidths() {
+        return prefs.get("tableColumnWidths", "");
+    }
 }
