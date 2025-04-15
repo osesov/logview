@@ -1,0 +1,7 @@
+#!/bin/bash
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+LIB="$DIR/../lib"
+
+CLASSPATH=$(find "$LIB" -name '*.jar' | tr '\n' ':')
+
+java -cp "$CLASSPATH" --add-modules javafx.controls --module-path "${LIB}" @mainClass@ "$@"
