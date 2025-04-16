@@ -42,23 +42,6 @@
             "type": "shell",
             "command": "mvn -B javafx:run",
             "group": "test"
-        },
-        {
-            "label": "Auto Restart JavaFX App",
-            "type": "shell",
-            "command": "mvn compile exec:java -Dexec.mainClass=app.MainApp",
-            "problemMatcher": [],
-            "isBackground": true,
-            "group": {
-                "kind": "build",
-                "isDefault": true
-            },
-            "watching": {
-                "activeOnStart": true,
-                "beginsPattern": ".",
-                "endsPattern": "."
-            }
         }
-
     ]
 }

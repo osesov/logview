@@ -73,8 +73,29 @@
                 </configuration>
             </plugin>
 
+            <!-- Copy libraries for local execution -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <version>3.8.1</version>
+                <executions>
+                    <execution>
+                        <id>copy-dependencies</id>
+                        <phase>compile</phase>
+                        <goals>
+                            <goal>copy-dependencies</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/lib</outputDirectory>
+                            <includeScope>runtime</includeScope> <!-- or compile/test/compile+runtime -->
+                            <stripVersion>false</stripVersion>   <!-- true to remove version from filename -->
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
             <!-- BUILD PACKAGE -->
-            <!-- prepare script -->
+            <!-- 1. prepare script -->
             <plugin>
                 <artifactId>maven-antrun-plugin</artifactId>
                 <version>3.1.0</version>
@@ -99,6 +120,7 @@
                 </executions>
             </plugin>
 
+            <!-- 2. Create a distribution package -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-assembly-plugin</artifactId>

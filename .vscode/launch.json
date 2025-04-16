@@ -10,7 +10,7 @@
             "request": "launch",
             "mainClass": "app.MainApp",
             "projectName": "jsonl-viewer-javafx",
-            "vmArgs": "--add-modules javafx.controls --module-path ${workspaceFolder}/target/dependency",
+            "vmArgs": "--add-modules javafx.controls --module-path ${workspaceFolder}/target/lib",
             "preLaunchTask": "compile"
         },
     ]
