@@ -106,7 +106,7 @@
                         <configuration>
                             <target>
                                 <!-- Copy and filter launch.sh.in to launch.sh -->
-                                <copy file="src/main/scripts/launch.sh.in" tofile="${project.build.directory}/filtered-scripts/launch.sh">
+                                <copy file="src/main/scripts/launch.sh.in" tofile="${project.build.directory}/filtered-scripts/jsonl-view.sh">
                                     <filterset>
                                         <filter token="mainClass" value="${mainClass}"/>
                                     </filterset>

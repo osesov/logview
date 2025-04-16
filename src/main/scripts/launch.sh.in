@@ -1,5 +1,8 @@
 #!/bin/bash
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+# Take symlinks into account
+DIR="$(dirname $( realpath "${BASH_SOURCE[0]}" ))"
 LIB="$DIR/../lib"
 
 CLASSPATH=$(find "$LIB" -name '*.jar' | tr '\n' ':')
