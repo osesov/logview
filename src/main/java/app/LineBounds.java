@@ -1,34 +1,36 @@
 package app;
 
-public class LineBounds {
-    private int start;
-    private int end;
-    private int index;
+public record LineBounds(int fileId, int chunkIndex, int start, int end, long objIndex) {}
 
-    public LineBounds(int start, int end, int index) {
-        this.start = start;
-        this.end = end;
-        this.index = index;
-    }
+// public class LineBounds {
+//     private int start;
+//     private int end;
+//     private int index;
 
-    public int getStart() {
-        return start;
-    }
+//     public LineBounds(int start, int end, int index) {
+//         this.start = start;
+//         this.end = end;
+//         this.index = index;
+//     }
 
-    public int getEnd() {
-        return end;
-    }
+//     public int getStart() {
+//         return start;
+//     }
 
-    public int getIndex() {
-        return index;
-    }
+//     public int getEnd() {
+//         return end;
+//     }
 
-    @Override
-    public String toString() {
-        return "LineBounds{" +
-                "start=" + start +
-                ", end=" + end +
-                ", index=" + index +
-                '}';
-    }
-}
+//     public int getIndex() {
+//         return index;
+//     }
+
+//     @Override
+//     public String toString() {
+//         return "LineBounds{" +
+//                 "start=" + start +
+//                 ", end=" + end +
+//                 ", index=" + index +
+//                 '}';
+//     }
+// }

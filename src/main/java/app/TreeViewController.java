@@ -7,14 +7,11 @@ import javafx.scene.layout.VBox;
 import javafx.util.Pair;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class TreeViewController {
     private TreeView<String> tree = new TreeView<>(new TreeItem<>("Root"));
-    private ObjectMapper mapper;
 
-    public TreeViewController(ObjectMapper mapper) {
-        this.mapper = mapper;
+    public TreeViewController() {
         this.tree.setShowRoot(false);
     }
 
@@ -28,7 +25,7 @@ public class TreeViewController {
     public void addObject(String jsonObject) {
         try {
             tree.getRoot().getChildren().clear();
-            var node = mapper.readTree(jsonObject);
+            var node = AppSettings.getMapper().readTree(jsonObject);
 
             if (node == null) {
                 System.err.println("Invalid JSON: " + jsonObject);
@@ -36,13 +33,6 @@ public class TreeViewController {
             }
 
             this.addJsonToTree(node, tree.getRoot());
-            // if (node.isObject()) {
-            // }
-
-
-            // TreeItem<String> parent = new TreeItem<>("Object");
-            // this.addJsonToTree(node, parent);
-            // tree.getRoot().getChildren().add(parent);
         }
         catch (Exception e) {
             System.err.println("Invalid JSON: " + e.getMessage());
@@ -137,14 +127,5 @@ public class TreeViewController {
                 index++;
             }
         }
-
-        // if (jsonObject instanceof Map<?, ?> map) {
-        //     TreeItem<String> parent = new TreeItem<>("Object");
-        //     map.forEach((k, v) -> {
-        //         TreeItem<String> child = new TreeItem<>(k + ": " + (v instanceof Map ? "[Object]" : v.toString()));
-        //         parent.getChildren().add(child);
-        //     });
-        //     tree.getRoot().getChildren().add(parent);
-        // }
     }
 }

@@ -2,9 +2,12 @@ package app;
 
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Predicate;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -34,22 +37,22 @@ public class TableViewController {
     private ObservableList<LineBounds> allEntries = FXCollections.observableArrayList();
     private final FilteredList<LineBounds> filteredEntries = new FilteredList<>(allEntries, e -> true);
 
-    private ObjectMapper mapper;
     private TreeViewController treeController;
     private DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("u-MM-dd hh:mm:ss");
     private String searchTerm = null;
     private Map<String, TableColumn<LineBounds, ?>> columnMap = new HashMap<>();
     private TableColumn<LineBounds, String> valueColumn;
-    TableColumn<LineBounds, Long> numberColumn;
+    private TableColumn<LineBounds, Long> numberColumn;
+    private Set<Integer> disabledFiles = new HashSet<>();
+    private List<FilterRule> filterRules = null;
 
-    public TableViewController(ObjectMapper mapper, TreeViewController treeController) {
-        this.mapper = mapper;
+    public TableViewController(TreeViewController treeController) {
         this.treeController = treeController;
 
         // table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
 
         numberColumn = new TableColumn<>("#");
-        numberColumn.setCellValueFactory(param -> new ReadOnlyLongWrapper(param.getValue().getIndex() + 1).asObject());
+        numberColumn.setCellValueFactory(param -> new ReadOnlyLongWrapper(param.getValue().objIndex() + 1).asObject());
         // levelColumn.prefWidthProperty().bind(table.widthProperty().subtract(2));
         table.getColumns().add(numberColumn);
 
@@ -145,6 +148,7 @@ public class TableViewController {
 
         // table.setItems(entries);
         table.setItems(filteredEntries);
+        filteredEntries.setPredicate(row -> this.filterPredicate(row));
 
         // table.setRowFactory(tv -> {
         //     TableRow<LineBounds> row = new TableRow<>();
@@ -156,6 +160,11 @@ public class TableViewController {
         //     });
         //     return row;
         // });
+    }
+
+    private void forceFilterUpdate()
+    {
+        filteredEntries.setPredicate(row -> this.filterPredicate(row));
     }
 
     public void setSearchString(String query) {
@@ -179,23 +188,23 @@ public class TableViewController {
         return this.jsonLineReader.getString(bounds);
     }
 
-    private String getField(LineBounds bounds, String field) {
-        var node = this.getNode(bounds, field);
-        if (node == null) {
-            return "";
-        }
+    // private String getField(LineBounds bounds, String field) {
+    //     var node = this.getNode(bounds, field);
+    //     if (node == null) {
+    //         return "";
+    //     }
 
-        if (node.isTextual()) {
-            return node.asText();
-        }
+    //     if (node.isTextual()) {
+    //         return node.asText();
+    //     }
 
-        return node.toString();
-    }
+    //     return node.toString();
+    // }
 
     private JsonNode getNode(LineBounds bounds, String field) {
         try {
             String json = jsonLineReader.getString(bounds);
-            JsonNode jsonNode = mapper.readTree(json);
+            JsonNode jsonNode = AppSettings.getMapper().readTree(json);
             return field == null ? jsonNode : jsonNode.findValue(field);
         } catch (JsonMappingException e) {
             throw new RuntimeException(e);
@@ -205,7 +214,7 @@ public class TableViewController {
     }
 
     public VBox getView() {
-        VBox box = new VBox(table); // or tree
+        VBox box = new VBox(table);
         VBox.setVgrow(table, Priority.ALWAYS);  // make TableView grow inside VBox
         box.setPadding(new Insets(5));
         return box;
@@ -218,7 +227,7 @@ public class TableViewController {
         table.getColumns().clear();
         table.getColumns().add(numberColumn);
         table.getColumns().add(valueColumn);
-        filteredEntries.setPredicate(e -> true);
+        // filteredEntries.setPredicate(e -> true);
     }
 
     public void addObject(LineBounds jsonObject) {
@@ -228,7 +237,7 @@ public class TableViewController {
 
         try {
             String str = this.getString(jsonObject);
-            JsonNode node = mapper.readTree(str);
+            JsonNode node = AppSettings.getMapper().readTree(str);
 
             if (!node.isObject())
                 return;
@@ -236,7 +245,6 @@ public class TableViewController {
             for (Iterator<Map.Entry<String, JsonNode>> it = node.fields(); it.hasNext(); ) {
                 Map.Entry<String, JsonNode> field = it.next();
                 String key = field.getKey();
-                JsonNode value = field.getValue();
 
                 if (columnMap.containsKey(key)) {
                     continue;
@@ -315,41 +323,45 @@ public class TableViewController {
         table.requestFocus();
     }
 
-    public void applyFilters(List<FilterRule> rules) {
-        highlightMap.clear();
+    private boolean filterPredicate(LineBounds row)
+    {
         boolean hasInclude = false;
         boolean hasExclude = false;
         int aliveRuleCount = 0;
 
-        for (FilterRule rule : rules) {
-            if (!rule.enabled.get()) {
-                continue;
+        if (this.disabledFiles.contains(row.fileId()))
+            return false;
+
+        if (filterRules != null) {
+            for (FilterRule rule : filterRules) {
+                if (!rule.enabled.get()) {
+                    continue;
+                }
+                hasInclude = hasInclude || rule.action.get() == FilterViewController.ActionType.INCLUDE;
+                hasExclude = hasExclude || rule.action.get() == FilterViewController.ActionType.EXCLUDE;
+                aliveRuleCount++;
             }
-            hasInclude = hasInclude || rule.action.get() == FilterViewController.ActionType.INCLUDE;
-            hasExclude = hasExclude || rule.action.get() == FilterViewController.ActionType.EXCLUDE;
-            aliveRuleCount++;
-        }
 
-        boolean defaultVisibility
-            = hasInclude && hasExclude ? false
-            : !hasInclude && !hasExclude ? true
-            : hasInclude ? false
-            : true;
-        boolean hasRules = aliveRuleCount > 0;
+            boolean defaultVisibility
+                = hasInclude && hasExclude ? false
+                : !hasInclude && !hasExclude ? true
+                : hasInclude ? false
+                : true;
+            boolean hasRules = aliveRuleCount > 0;
 
-        filteredEntries.setPredicate(row -> {
             FilterRule lastMatch = null;
+
             // if any include/exclude rule exists then default is to hide. If none, show all
             String json = this.getString(row);
             if (!hasRules) {
                 return true;
             }
 
-            for (FilterRule rule : rules) {
+            for (FilterRule rule : filterRules) {
                 if (!rule.enabled.get()) {
                     continue;
                 }
-                if (rule.matches(json, mapper)) {
+                if (rule.matches(json)) {
                     lastMatch = rule;
                 }
             }
@@ -363,9 +375,15 @@ public class TableViewController {
             }
 
             return lastMatch.action.get() == FilterViewController.ActionType.INCLUDE;
-        });
+        }
 
-        table.refresh(); // trigger UI update
+        return true;
+    }
+
+    public void applyFilters(List<FilterRule> rules) {
+        highlightMap.clear();
+        this.filterRules = rules;
+        forceFilterUpdate();
     }
 
     private String toRgbString(Color color) {
@@ -385,12 +403,12 @@ public class TableViewController {
         return Color.color(1.0 - color.getRed(), 1.0 - color.getGreen(), 1.0 - color.getBlue(), color.getOpacity());
     }
 
-    public void saveColumnLayout(ObjectMapper mapper) {
-        TableColumnLayoutUtil.saveColumnLayout(table, "tableColumns", mapper);
+    public void saveColumnLayout() {
+        TableColumnLayoutUtil.saveColumnLayout(table, "tableColumns");
     }
 
-    public void loadColumnLayout(ObjectMapper mapper) {
-        TableColumnLayoutUtil.loadColumnLayout(table, "tableColumns", mapper);
+    public void loadColumnLayout() {
+        TableColumnLayoutUtil.loadColumnLayout(table, "tableColumns");
     }
 
 
@@ -415,5 +433,15 @@ public class TableViewController {
                 break;
             }
         }
+    }
+
+    public void setFileEnabled(int fileId, boolean enabled) {
+        if (enabled) {
+            disabledFiles.remove(fileId);
+        } else {
+            disabledFiles.add(fileId);
+        }
+
+        forceFilterUpdate();
     }
 }

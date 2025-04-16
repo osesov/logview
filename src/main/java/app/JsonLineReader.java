@@ -1,73 +1,151 @@
 package app;
 
-import java.io.*;
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import javafx.scene.control.Label;
+
+import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Optional;
-
-import javafx.scene.control.Label;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
 
 public class JsonLineReader {
-    private Path path;
-    private MappedByteBuffer buffer;
-    private final Map<Integer, String> lineCache;
-    // TODO: implement chunks to map files larger than 2GB
-    // chunks should be aligned to JSON object to simplify reading
-    //
 
-    public JsonLineReader(Path path) {
-        this.path = path;
+    private record FileChunk(Path path, long fileOffset, long size, MappedByteBuffer buffer) {}
 
-        // use Map<Integer, SoftReference<String>> instead?
-        lineCache = new LinkedHashMap<>(128, 0.75f, true) {
-            @Override
-            protected boolean removeEldestEntry(Map.Entry<Integer, String> eldest) {
-                return size() > 10_000;
-            }
-        };
+    private static final int MAX_CHUNK_SIZE = Integer.MAX_VALUE - 8;
+    private static final int MAX_PAGE_SIZE = 65_536;
 
+    private final List<FileChunk> chunks = new ArrayList<>();
+    private final List<LineBounds> lines = new ArrayList<>();
+    private final Map<LineBounds, String> cache = new HashMap<>();
+    private final ObjectMapper mapper = new ObjectMapper(new JsonFactory());
+    private long rowIndex = 0;
+    private int fileIndex = 0;
+    private TableViewController tableController;
+    private FileListController fileListController;
+    private Label statusBar;
+
+    JsonLineReader(TableViewController tableController, Label statusBar, FileListController fileListController) {
+        // Default constructor
+        this.tableController = tableController;
+        this.fileListController = fileListController;
+        this.statusBar = statusBar;
     }
 
-    public void readLines(TableViewController tableController, Label statusBar) {
-        try {
-            long size = Files.size(path);
+    public void openFiles(List<Path> files) throws IOException {
+        chunks.clear();
+        lines.clear();
+        cache.clear();
+        rowIndex = 0;
 
-            buffer = FileChannel.open(path, StandardOpenOption.READ)
-                    .map(FileChannel.MapMode.READ_ONLY, 0, size);
-
-            JsonValueScanner scanner = new JsonValueScanner();
-            int pos = 0;
-            long rowIndex = 0;
-
-            tableController.reset(this);
-            while (pos < buffer.limit()) {
-                Optional<int[]> bounds = scanner.nextValue(buffer, pos);
-                if (bounds.isEmpty())
-                    break;
-
-                int start = bounds.get()[0];
-                int end = bounds.get()[1];
-
-                // System.out.println("Found JSON: " + value);
-                tableController.addObject(new LineBounds(start, end, (int)rowIndex));
-                pos = end;
-                rowIndex++;
+        for (Path path : files) {
+            if (!Files.exists(path)) {
+                throw new IOException("File not found: " + path);
             }
 
-            statusBar.setText("Loaded " + rowIndex + " entries from: " + path.getFileName());
-        } catch (Exception e) {
-            e.printStackTrace();
+            addFile(path);
         }
     }
 
-    public String getString(LineBounds bounds) {
-        return lineCache.computeIfAbsent(bounds.getStart(), k -> {
-            return JsonValueScanner.extract(buffer, bounds);
+    public void addFile(Path path)
+    {
+        int chunkIndex = chunks.size();
+
+        try (FileChannel channel = FileChannel.open(path, StandardOpenOption.READ)) {
+            long size = channel.size();
+            long offset = 0;
+            int blockOffset = 0;
+            fileListController.addFile(path.toString(), fileIndex);
+            while (offset < size) {
+                long remaining = size - offset;
+                long mapSize = Math.min(remaining, MAX_CHUNK_SIZE);
+                MappedByteBuffer buffer = channel.map(FileChannel.MapMode.READ_ONLY, offset, mapSize);
+                chunks.add(new FileChunk(path, offset, mapSize, buffer));
+
+                int len = buffer.limit();
+                ScanChunk consumed = scanChunk(fileIndex, buffer, blockOffset, chunkIndex, rowIndex);
+                if (consumed.pos < len) { // incomplete, overlap buffers
+                    offset += consumed.pos % MAX_PAGE_SIZE * MAX_PAGE_SIZE;
+                    blockOffset = consumed.pos % MAX_PAGE_SIZE;
+                }
+                else {
+                    offset += consumed.pos;
+                    blockOffset = 0;
+                }
+
+                rowIndex = consumed.rowIndex;
+                chunkIndex++;
+            }
+
+            fileIndex++;
+        }
+
+        catch (IOException e) {
+            throw new RuntimeException("Error reading file: " + path, e);
+        }
+
+        this.statusBar.setText("Loaded " + fileIndex + " files, " + rowIndex + " lines");
+    }
+
+    private record ScanChunk(int pos, long rowIndex) {}
+
+    private ScanChunk scanChunk(int fileIndex, ByteBuffer buffer, int blockOffset, int chunkIndex, long rowIndex) {
+        JsonValueScanner scanner = new JsonValueScanner();
+        int pos = blockOffset;
+        while (pos < buffer.limit()) {
+            Optional<int[]> match = scanner.nextValue(buffer, pos);
+            if (match.isEmpty()) break;
+
+            int start = match.get()[0];
+            int end = match.get()[1];
+
+            if (start >= end)
+                break;
+            LineBounds line = new LineBounds(fileIndex, chunkIndex, start, end, rowIndex++);
+            pos = end;
+
+            lines.add(line);
+            this.tableController.addObject(line);
+        }
+
+        return new ScanChunk(pos, rowIndex);
+    }
+
+    public int getLineCount() {
+        return lines.size();
+    }
+
+    public LineBounds getBounds(int rowIndex) {
+        return lines.get(rowIndex);
+    }
+
+    public String getString(LineBounds b) {
+        return cache.computeIfAbsent(b, k -> {
+            FileChunk chunk = chunks.get(b.chunkIndex());
+            ByteBuffer buffer = chunk.buffer().duplicate();
+            buffer.position(b.start());
+            byte[] data = new byte[b.end() - b.start()];
+            buffer.get(data);
+            return new String(data, StandardCharsets.UTF_8);
         });
+    }
+
+    public Map<String, Object> parse(LineBounds b) {
+        try {
+            return mapper.readValue(getString(b), Map.class);
+        } catch (Exception e) {
+            return Map.of("error", "Invalid JSON: " + e.getMessage());
+        }
+    }
+
+    public List<LineBounds> getAllBounds() {
+        return lines;
     }
 }

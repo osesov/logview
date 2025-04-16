@@ -53,7 +53,7 @@ public class FilterViewController {
             return rule;
         }
 
-        public boolean matches(String row, ObjectMapper mapper) {
+        public boolean matches(String row) {
             String exprText = expression.get();
             return switch (type.get()) {
                 case PLAIN -> row.contains(exprText);
@@ -65,7 +65,7 @@ public class FilterViewController {
 
                 case JSONPATH -> {
                     try {
-                        String json = mapper.writeValueAsString(row);
+                        String json = AppSettings.getMapper().writeValueAsString(row);
                         Object result = JsonPath.read(json, exprText);
                         yield result != null;
                     } catch (Exception e) {
@@ -260,34 +260,24 @@ public class FilterViewController {
         rules.clear();
     }
 
-    public void saveRulesToPreferences(ObjectMapper mapper) {
+    public void saveRulesToPreferences() {
         try {
             List<Map<String, String>> list = rules.stream()
                 .map(FilterRule::toSerializable)
                 .toList();
 
-            String json = mapper.writeValueAsString(list);
-            AppSettings.saveFilterRules(json);
+            AppSettings.saveFilterRules(list);
         } catch (Exception e) {
             System.err.println("Failed to save filter rules: " + e.getMessage());
         }
     }
 
-    public void loadRulesFromPreferences(ObjectMapper mapper) {
-        String json = AppSettings.loadFilterRules();
-        if (json != null && !json.isEmpty()) {
-            try {
-                List<Map<String, String>> list = mapper.readValue(
-                    json,
-                    new TypeReference<>() {}
-                );
-                rules.clear();
-                for (Map<String, String> map : list) {
-                    rules.add(FilterRule.fromSerializable(map));
-                }
-            } catch (Exception e) {
-                System.err.println("Failed to load filter rules: " + e.getMessage());
-            }
+    public void loadRulesFromPreferences() {
+        List<Map<String, String>> list = AppSettings.loadFilterRules();
+
+        rules.clear();
+        for (Map<String, String> map : list) {
+            rules.add(FilterRule.fromSerializable(map));
         }
     }
 
@@ -303,11 +293,11 @@ public class FilterViewController {
         this.onRulesChanged = callback;
     }
 
-    public void saveColumnLayout(ObjectMapper mapper) {
-        TableColumnLayoutUtil.saveColumnLayout(table, "filterColumns", mapper);
+    public void saveColumnLayout() {
+        TableColumnLayoutUtil.saveColumnLayout(table, "filterColumns");
     }
 
-    public void loadColumnLayout(ObjectMapper mapper) {
-        TableColumnLayoutUtil.loadColumnLayout(table, "filterColumns", mapper);
+    public void loadColumnLayout() {
+        TableColumnLayoutUtil.loadColumnLayout(table, "filterColumns");
     }
 }

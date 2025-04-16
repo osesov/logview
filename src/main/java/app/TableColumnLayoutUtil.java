@@ -14,7 +14,7 @@ import javafx.scene.control.TableView;
 public class TableColumnLayoutUtil
 {
 
-    public static <T> void saveColumnLayout(TableView<T> table, String key, ObjectMapper mapper) {
+    public static <T> void saveColumnLayout(TableView<T> table, String key) {
         List<Map<String, Object>> layout = new ArrayList<>();
         for (TableColumn<T, ?> col : table.getColumns()) {
             Map<String, Object> entry = new LinkedHashMap<>();
@@ -24,19 +24,19 @@ public class TableColumnLayoutUtil
         }
 
         try {
-            String json = mapper.writeValueAsString(layout);
+            String json = AppSettings.getMapper().writeValueAsString(layout);
             AppSettings.saveColumnLayout(key, json);
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
-    public static <T> void loadColumnLayout(TableView<T> table, String key, ObjectMapper mapper) {
+    public static <T> void loadColumnLayout(TableView<T> table, String key) {
         String json = AppSettings.loadColumnLayout(key);
         if (json == null || json.isEmpty()) return;
 
         try {
-            List<Map<String, Object>> layout = mapper.readValue(json, new TypeReference<>() {});
+            List<Map<String, Object>> layout = AppSettings.getMapper().readValue(json, new TypeReference<>() {});
             List<TableColumn<T, ?>> current = new ArrayList<>(table.getColumns());
             List<TableColumn<T, ?>> ordered = new ArrayList<>();
 

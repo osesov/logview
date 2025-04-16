@@ -5,8 +5,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import app.FilterViewController.FilterRule;
 import javafx.application.Application;
 import javafx.collections.ListChangeListener;
@@ -23,34 +21,33 @@ import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
-import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 
 
-public class MainApp extends Application {
-
-    private ObjectMapper mapper = new ObjectMapper();
-    private TreeViewController treeController = new TreeViewController(this.mapper);
-    private TableViewController tableController = new TableViewController(this.mapper, treeController);
-    private FilterViewController filterController = new FilterViewController();
+public class MainApp extends Application
+{
+    private TreeViewController treeViewController = new TreeViewController();
+    private TableViewController tableViewController = new TableViewController(treeViewController);
+    private FilterViewController filterViewController = new FilterViewController();
+    private FileListController fileListController = new FileListController(tableViewController);
     private TextField searchField = new TextField();
     private Label statusBar = new Label("Ready");
-    private SplitPane tablePane;
     private JsonLineReader jsonLineReader;
 
     @Override
     public void start(Stage primaryStage) {
         BorderPane root = new BorderPane();
 
-        Node topBarContainer = this.buildToolBar(primaryStage);
         Node statusContainer = this.buildStatusBar();
-        SplitPane middleArea = this.buildMiddleArea();
+        MiddleArea middleArea = this.buildMiddleArea();
+        Node topBarContainer = this.buildToolBar(primaryStage, middleArea);
 
+        // wire up the controllers
 
         // # set up the main layout
         root.setTop(topBarContainer);
-        root.setCenter(middleArea);
+        root.setCenter(middleArea.getView());
         root.setBottom(statusContainer);
 
         // load app settings
@@ -74,49 +71,74 @@ public class MainApp extends Application {
             }
         });
 
-        primaryStage.setTitle("JSONL Viewer");
+        primaryStage.setTitle("JSON Viewer");
         primaryStage.setScene(scene);
         primaryStage.show();
+        jsonLineReader = new JsonLineReader(tableViewController, statusBar, fileListController);
+        tableViewController.reset(jsonLineReader);
 
-        tableController.focus();
+        tableViewController.focus();
 
         this.initialLoadFile();
 
         // save state on exit
         primaryStage.setOnCloseRequest(e -> {
-            AppSettings.saveDividerPosition(middleArea.getDividerPositions()[0]);
+            middleArea.saveState();
             AppSettings.saveWindowBounds(primaryStage.getX(), primaryStage.getY(), primaryStage.getWidth(), primaryStage.getHeight());
-            filterController.saveRulesToPreferences(mapper);
-            filterController.saveColumnLayout(mapper);
-            tableController.saveColumnLayout(mapper);
-            double dividers[] = tablePane.getDividerPositions();
-            if (dividers.length > 0)
-                AppSettings.saveFilterDividerPosition(dividers[0]);
+            filterViewController.saveRulesToPreferences();
+            filterViewController.saveColumnLayout();
+            tableViewController.saveColumnLayout();
         });
 
-        tableController.applyFilters(filterController.getRules());
+        // apply filters when cells are edited
+        filterViewController.setOnRulesChanged(() -> {
+            tableViewController.applyFilters(filterViewController.getRules());
+        });
+
+        // apply filters when a rule is added or removed
+        filterViewController.getRules().addListener((ListChangeListener<? super FilterRule>) c -> {
+            tableViewController.applyFilters(filterViewController.getRules());
+        });
+
+        // apply filters when search field is changed
+        searchField.textProperty().addListener((obs, oldVal, newVal) -> {
+            tableViewController.applyFilters(filterViewController.getRules());
+        });
+
+        fileListController.setOnFileOpen(() -> openFile(primaryStage));
+
+        filterViewController.loadRulesFromPreferences();
+        filterViewController.loadColumnLayout();
+        tableViewController.loadColumnLayout();
+        tableViewController.applyFilters(filterViewController.getRules());
+        middleArea.loadState();
     }
 
-    private Node buildToolBar(Stage primaryStage)
+    private Node buildToolBar(Stage primaryStage, MiddleArea middleArea)
     {
         // # top bar
-        Button openButton = new Button("Open JSONL File");
-        openButton.setOnAction(e -> openFile(primaryStage));
+        String buttonText[] = {"Explorer »", "« Hide Explorer"};
 
+        boolean explorerState = middleArea.isExplorerVisible();
+        Button toggleExplorerTab = new Button(buttonText[explorerState ? 1 : 0]);
 
-        HBox topBarContainer = new HBox(openButton);
-        topBarContainer.setSpacing(10);
-        topBarContainer.setPadding(new Insets(5));
+        toggleExplorerTab.setOnAction(e -> {
+            if (middleArea.toggleExplorer()) {
+                toggleExplorerTab.setText(buttonText[1]);
+            }
+            else {
+                toggleExplorerTab.setText(buttonText[0]);
+            }
+        });
 
         // ## go to row button
         TextField goToField = new TextField();
         goToField.setPromptText("Go to row #");
         goToField.setPrefWidth(100);
-        topBarContainer.getChildren().add(goToField);
         goToField.setOnAction(e -> {
             try {
                 int row = Integer.parseInt(goToField.getText());
-                tableController.scrollToRow(row - 1);
+                tableViewController.scrollToRow(row - 1);
                 goToField.clear();
             } catch (Exception ignored) {}
         });
@@ -124,21 +146,20 @@ public class MainApp extends Application {
         // ## search field
         searchField.setPromptText("Search (key or value)...");
         searchField.textProperty().addListener((obs, oldVal, newVal) -> {
-            tableController.setSearchString(newVal);
+            tableViewController.setSearchString(newVal);
         });
-        topBarContainer.getChildren().add(searchField);
         searchField.setOnKeyPressed(ev -> {
             if (ev.getCode() == KeyCode.ESCAPE) {
                 searchField.clear();
-                tableController.focus();  // implement this to call table.requestFocus()
+                tableViewController.focus();  // implement this to call table.requestFocus()
             }
 
             if (ev.getCode() == KeyCode.ENTER && ev.isControlDown()) {
-                tableController.focus();
+                tableViewController.focus();
             }
 
             if (ev.getCode() == KeyCode.ENTER && !ev.isControlDown() && !ev.isAltDown()) {
-                tableController.selectNextMatch();
+                tableViewController.selectNextMatch();
             }
 
         });
@@ -147,25 +168,10 @@ public class MainApp extends Application {
         HBox.setHgrow(searchField, Priority.ALWAYS);
         searchField.setMaxWidth(Double.MAX_VALUE);
 
-        // filter button
-        VBox filterView = filterController.getView();
-
-        Button toggleFilter = new Button("Filters »");
-        topBarContainer.getChildren().add(toggleFilter);
-
-        // show/hide filters
-        toggleFilter.setOnAction(e -> {
-            if (tablePane.getItems().contains(filterView)) {
-                tablePane.getItems().remove(filterView);
-                AppSettings.saveFilterDividerPosition(tablePane.getDividerPositions()[0]);
-
-                toggleFilter.setText("Filters »");
-            } else {
-                tablePane.getItems().add(filterView);
-                tablePane.setDividerPositions(AppSettings.loadFilterDividerPosition(0.66));
-                toggleFilter.setText("« Hide Filters");
-            }
-        });
+        // wrap it finally
+        HBox topBarContainer = new HBox(toggleExplorerTab, goToField, searchField);
+        topBarContainer.setSpacing(10);
+        topBarContainer.setPadding(new Insets(5));
 
         return topBarContainer;
     }
@@ -180,69 +186,52 @@ public class MainApp extends Application {
         return statusContainer;
     }
 
-    private SplitPane buildMiddleArea()
+    private MiddleArea buildMiddleArea()
     {
-        // ## Table/Filter area
-        tablePane = new SplitPane();
-        tablePane.setOrientation(Orientation.HORIZONTAL);
-        tablePane.getItems().addAll(tableController.getView() /* filterView hidden by default */);
-        tablePane.setDividerPositions(1.0); // full width to TableView initially
-
-
-        SplitPane splitPane = new SplitPane();
-        splitPane.setOrientation(Orientation.VERTICAL);
-        splitPane.getItems().addAll(
-            tablePane, // tableController.getView(),
-            treeController.getView()
+        return new MiddleArea(
+            fileListController,
+            filterViewController,
+            tableViewController,
+            treeViewController
         );
-        splitPane.setDividerPositions(AppSettings.loadDividerPosition(0.5));
-
-        // apply filters when cells are edited
-        filterController.setOnRulesChanged(() -> {
-            tableController.applyFilters(filterController.getRules());
-        });
-
-        // apply filters when a rule is added or removes
-        filterController.getRules().addListener((ListChangeListener<? super FilterRule>) c -> {
-            tableController.applyFilters(filterController.getRules());
-        });
-
-        // apply filters when search field is changed
-        searchField.textProperty().addListener((obs, oldVal, newVal) -> {
-            tableController.applyFilters(filterController.getRules());
-        });
-
-        filterController.loadRulesFromPreferences(mapper);
-        filterController.loadColumnLayout(mapper);
-        tableController.loadColumnLayout(mapper);
-
-        return splitPane;
     }
 
     private void openFile(Stage stage) {
         FileChooser fileChooser = new FileChooser();
-        fileChooser.setTitle("Open JSON Lines File");
+        fileChooser.setTitle("Open JSON File");
         fileChooser.getExtensionFilters().addAll(
                 new FileChooser.ExtensionFilter("JSONL Files", "*.jsonl", "*.json")
         );
-        File selectedFile = fileChooser.showOpenDialog(stage);
-        this.tryToOpenFile(selectedFile.getAbsolutePath(), true);
+        List<File> selectedFile = fileChooser.showOpenMultipleDialog(stage);
+        if (selectedFile == null || selectedFile.isEmpty())
+            return;
+
+        List<String> files = selectedFile.stream()
+                .map(file -> file.getAbsolutePath())
+                .toList();
+
+        this.tryToOpenFile(files, true);
     }
 
-    private boolean tryToOpenFile(String fileName, boolean saveToSettings)
+    private boolean tryToOpenFile(List<String> files, boolean saveToSettings)
     {
-        if (fileName == null || fileName.isEmpty()) {
+        if (files == null || files.isEmpty())
             return false;
+
+        for (String fileName : files) {
+            if (fileName == null)
+                continue;
+
+            Path filePath = Path.of(fileName);
+            if (!Files.exists(filePath))
+                return false;
+
+            jsonLineReader.addFile(filePath);
         }
 
-        Path filePath = Path.of(fileName);
-        if (!Files.exists(filePath))
-            return false;
-
-        jsonLineReader = new JsonLineReader(filePath);
-        jsonLineReader.readLines(tableController, statusBar);
-        if (saveToSettings)
-            AppSettings.saveLastOpenedFile(fileName);
+        if (saveToSettings) {
+            AppSettings.saveLastOpenedFile(fileListController.getOpenFiles());
+        }
 
         return true;
     }
@@ -252,15 +241,16 @@ public class MainApp extends Application {
         // load file from parameters
         List<String> args = getParameters().getUnnamed();
 
-        if (this.tryToOpenFile(args.isEmpty() ? null : args.get(0), true))
+        if (this.tryToOpenFile(args, true))
             return;
 
         // Reload last file
-        String lastFile = AppSettings.loadLastOpenedFile();
-        this.tryToOpenFile(lastFile, false);
+        List<String> files = AppSettings.loadLastOpenedFile();
+        this.tryToOpenFile(files, false);
     }
 
     public static void main(String[] args) {
         launch(args);
     }
+
 }

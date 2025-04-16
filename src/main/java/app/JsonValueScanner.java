@@ -9,7 +9,8 @@ public class JsonValueScanner {
     public Optional<int[]> nextValue(ByteBuffer buffer, int start) {
         int len = buffer.limit();
         int pos = skipWhitespace(buffer, start, len);
-        if (pos >= len) return Optional.empty();
+        if (pos >= len)
+            return Optional.of(new int[]{len, len});
 
         char firstChar = (char) buffer.get(pos);
         int end = switch (firstChar) {
@@ -102,8 +103,8 @@ public class JsonValueScanner {
             return "";
         }
 
-        byte[] data = new byte[bounds.getEnd() - bounds.getStart()];
-        buffer.position(bounds.getStart());
+        byte[] data = new byte[bounds.end() - bounds.start()];
+        buffer.position(bounds.start());
         buffer.get(data);
         return new String(data, StandardCharsets.UTF_8);
     }
