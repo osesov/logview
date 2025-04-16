@@ -5,8 +5,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jayway.jsonpath.JsonPath;
 
 import javafx.beans.binding.Bindings;
@@ -269,6 +267,7 @@ public class FilterViewController {
             AppSettings.saveFilterRules(list);
         } catch (Exception e) {
             System.err.println("Failed to save filter rules: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
