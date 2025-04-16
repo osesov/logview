@@ -61,8 +61,8 @@ public class TreeViewController {
             if (newLine >= 0 && s.length() > newLine + 1) {
                 title = s.substring(0, newLine) + "...";
                 truncated = true;
-            } else if (s.length() > 256) {
-                title = s.substring(0, 256) + "...";
+            } else if (s.length() > 200) {
+                title = s.substring(0, 200) + "...";
                 truncated = true;
             } else {
                 title = s;
@@ -75,8 +75,8 @@ public class TreeViewController {
                 var maxLength = Math.min(256, text.length());
                 title = text.substring(0, maxLength).replaceAll("\n", "\\\\n") + (text.length() > maxLength ? "..." : "");
                 truncated = true;
-            } else if (text.length() > 256) {
-                title = text.substring(0, 255) + "...";
+            } else if (text.length() > 200) {
+                title = text.substring(0, 200) + "...";
                 truncated = true;
             } else {
                 title = text;
@@ -90,17 +90,17 @@ public class TreeViewController {
         if (node.isObject()) {
             node.fields().forEachRemaining(entry -> {
                 TreeItem<String> child;
+                var result = this.getTitle(entry.getValue());
+                var title = result.getKey();
+                var truncated = result.getValue();
+
                 if (entry.getValue().isObject()) {
-                    child = new TreeItem<>(entry.getKey() + ": " + this.getTitle(entry.getValue()));
+                    child = new TreeItem<>(entry.getKey() + ": " + title);
                     addJsonToTree(entry.getValue(), child);
                 } else if (entry.getValue().isArray()) {
-                    child = new TreeItem<>(entry.getKey() + ": " + this.getTitle(entry.getValue()));
+                    child = new TreeItem<>(entry.getKey() + ": " + title);
                     addJsonToTree(entry.getValue(), child);
                 } else {
-                    var result = this.getTitle(entry.getValue());
-                    var title = result.getKey();
-                    var truncated = result.getValue();
-
                     if (truncated) { // truncated
                         child = new TreeItem<>(entry.getKey() + ": " + title);
                         var rest = new TreeItem<>(entry.getValue().asText());
@@ -116,15 +116,15 @@ public class TreeViewController {
             int index = 0;
             for (var element : node) {
                 TreeItem<String> child;
+                var result = this.getTitle(element);
+                var title = result.getKey();
+                var truncated = result.getValue();
+
                 if (element.isObject() || element.isArray()) {
-                    child = new TreeItem<>("[" + index + "]: " + this.getTitle(element));
+                    child = new TreeItem<>("[" + index + "]: " + title);
                     addJsonToTree(element, child);
                 } else {
-                    var result = this.getTitle(element);
-                    var title = result.getKey();
-                    var truncated = result.getValue();
-
-                    if (truncated) { // truncated
+                    if (truncated) {
                         child = new TreeItem<>("[" + index + "]: " + title);
                         var rest = new TreeItem<>(element.asText());
                         child.getChildren().add(rest);

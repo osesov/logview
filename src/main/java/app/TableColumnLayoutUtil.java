@@ -55,6 +55,12 @@ public class TableColumnLayoutUtil
                 }
             }
 
+            for (TableColumn<T, ?> col : current) {
+                if (!ordered.contains(col)) {
+                    ordered.add(col);
+                }
+            }
+
             table.getColumns().setAll(ordered);
         } catch (Exception e) {
             e.printStackTrace();

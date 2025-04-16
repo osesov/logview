@@ -144,7 +144,7 @@ public class FilterViewController {
         });
 
 
-        table.getColumns().addAll(enabledCol, actionCol, typeCol, exprCol, colorCol);
+        table.getColumns().addAll(enabledCol, actionCol, typeCol, colorCol, exprCol);
         table.setItems(rules);
         table.setEditable(true);
 

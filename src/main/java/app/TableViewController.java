@@ -2,6 +2,7 @@ package app;
 
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -37,6 +38,9 @@ public class TableViewController {
     private TreeViewController treeController;
     private DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("u-MM-dd hh:mm:ss");
     private String searchTerm = null;
+    private Map<String, TableColumn<LineBounds, ?>> columnMap = new HashMap<>();
+    private TableColumn<LineBounds, String> valueColumn;
+    TableColumn<LineBounds, Long> numberColumn;
 
     public TableViewController(ObjectMapper mapper, TreeViewController treeController) {
         this.mapper = mapper;
@@ -44,81 +48,92 @@ public class TableViewController {
 
         // table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
 
-        TableColumn<LineBounds, Long> numberColumn = new TableColumn<>("#");
+        numberColumn = new TableColumn<>("#");
         numberColumn.setCellValueFactory(param -> new ReadOnlyLongWrapper(param.getValue().getIndex() + 1).asObject());
         // levelColumn.prefWidthProperty().bind(table.widthProperty().subtract(2));
         table.getColumns().add(numberColumn);
 
-        TableColumn<LineBounds, String> levelColumn = new TableColumn<>("Level");
-        levelColumn.setCellValueFactory(param -> new ReadOnlyStringWrapper(this.getField(param.getValue(), "level")));
-        // levelColumn.prefWidthProperty().bind(table.widthProperty().subtract(2));
-        table.getColumns().add(levelColumn);
-
-        TableColumn<LineBounds, String> timeColumn = new TableColumn<>("Time");
-        timeColumn.setCellValueFactory(param -> {
-            var timestamp = this.getNode(param.getValue(), "timestamp").asLong(0);
-            var instance = java.time.Instant.ofEpochMilli(timestamp);
-            var zoneId = java.time.ZoneId.systemDefault();
-            var localDateTime = java.time.LocalDateTime.ofInstant(instance, zoneId);
-            var string = localDateTime.format(formatter);
-            return new ReadOnlyStringWrapper(string);
-        });
-        // timeColumn.prefWidthProperty().bind(table.widthProperty().subtract(2));
-        table.getColumns().add(timeColumn);
-
-        TableColumn<LineBounds, String> messageColumn = new TableColumn<>("Message");
-        messageColumn.setCellValueFactory(param -> new ReadOnlyStringWrapper(this.getField(param.getValue(), "message")));
-        // timeColumn.prefWidthProperty().bind(table.widthProperty().subtract(2));
-        table.getColumns().add(messageColumn);
-
-        TableColumn<LineBounds, String> argsColumn = new TableColumn<>("Args");
-        argsColumn.setCellValueFactory(param -> new ReadOnlyStringWrapper(this.getField(param.getValue(), "args")));
-        argsColumn.prefWidthProperty().bind(table.widthProperty()
-            .subtract(table.getColumns().stream()
-                .filter(column -> column != argsColumn)
-                .mapToDouble(TableColumn::getWidth)
-                .sum() + 2));
-        // timeColumn.prefWidthProperty().bind(table.widthProperty().subtract(2));
-        table.getColumns().add(argsColumn);
-
-        for (TableColumn<LineBounds, ?> column : table.getColumns()) {
-            column.setResizable(true);
-            column.setReorderable(true);
-        }
-
-        argsColumn.setCellFactory(col -> new TableCell<>() {
-            @Override
-            protected void updateItem(String item, boolean empty) {
-                super.updateItem(item, empty);
-                if (empty || item == null) {
-                    setText(null);
-                    setStyle("");
-                } else {
-                    setText(item);
-                    LineBounds row = table.getItems().get(getIndex());
-                    Color color = highlightMap.get(row);
-
-                    if (searchTerm != null && !searchTerm.isEmpty() && item.toLowerCase().contains(searchTerm.toLowerCase()))
-                        color = Color.YELLOW;
-
-                    boolean selected = getTableRow().isSelected();
-                    if (selected) {
-                    }
-                    else if (color != null) {
-                        String textColor = getInverseTextColor(color);
-                        setStyle(String.format(
-                            "-fx-background-color: %s; -fx-text-fill: %s;",
-                            toRgbString(color), textColor
-                        ));
-
-                    } else if (highlightMap.isEmpty()) {
-                        setStyle("");
-                    } else {
-                        setStyle("-fx-background-color: transparent");
-                    }
-                }
+        valueColumn = new TableColumn<>("Value");
+        valueColumn.setCellValueFactory(param -> {
+            var node = this.getString(param.getValue());
+            if (node == null) {
+                return new ReadOnlyStringWrapper("");
             }
+            return new ReadOnlyStringWrapper(node.toString());
         });
+
+        setupColumn(valueColumn, null);
+        table.getColumns().add(valueColumn);
+        // TableColumn<LineBounds, String> levelColumn = new TableColumn<>("Level");
+        // levelColumn.setCellValueFactory(param -> new ReadOnlyStringWrapper(this.getField(param.getValue(), "level")));
+        // // levelColumn.prefWidthProperty().bind(table.widthProperty().subtract(2));
+        // table.getColumns().add(levelColumn);
+
+        // TableColumn<LineBounds, String> timeColumn = new TableColumn<>("Time");
+        // timeColumn.setCellValueFactory(param -> {
+        //     var timestamp = this.getNode(param.getValue(), "timestamp").asLong(0);
+        //     var instance = java.time.Instant.ofEpochMilli(timestamp);
+        //     var zoneId = java.time.ZoneId.systemDefault();
+        //     var localDateTime = java.time.LocalDateTime.ofInstant(instance, zoneId);
+        //     var string = localDateTime.format(formatter);
+        //     return new ReadOnlyStringWrapper(string);
+        // });
+        // // timeColumn.prefWidthProperty().bind(table.widthProperty().subtract(2));
+        // table.getColumns().add(timeColumn);
+
+        // TableColumn<LineBounds, String> messageColumn = new TableColumn<>("Message");
+        // messageColumn.setCellValueFactory(param -> new ReadOnlyStringWrapper(this.getField(param.getValue(), "message")));
+        // // timeColumn.prefWidthProperty().bind(table.widthProperty().subtract(2));
+        // table.getColumns().add(messageColumn);
+
+        // TableColumn<LineBounds, String> argsColumn = new TableColumn<>("Args");
+        // argsColumn.setCellValueFactory(param -> new ReadOnlyStringWrapper(this.getField(param.getValue(), "args")));
+        // argsColumn.prefWidthProperty().bind(table.widthProperty()
+        //     .subtract(table.getColumns().stream()
+        //         .filter(column -> column != argsColumn)
+        //         .mapToDouble(TableColumn::getWidth)
+        //         .sum() + 2));
+        // // timeColumn.prefWidthProperty().bind(table.widthProperty().subtract(2));
+        // table.getColumns().add(argsColumn);
+
+        // for (TableColumn<LineBounds, ?> column : table.getColumns()) {
+        //     column.setResizable(true);
+        //     column.setReorderable(true);
+        // }
+
+        // argsColumn.setCellFactory(col -> new TableCell<>() {
+        //     @Override
+        //     protected void updateItem(String item, boolean empty) {
+        //         super.updateItem(item, empty);
+        //         if (empty || item == null) {
+        //             setText(null);
+        //             setStyle("");
+        //         } else {
+        //             setText(item);
+        //             LineBounds row = table.getItems().get(getIndex());
+        //             Color color = highlightMap.get(row);
+
+        //             if (searchTerm != null && !searchTerm.isEmpty() && item.toLowerCase().contains(searchTerm.toLowerCase()))
+        //                 color = Color.YELLOW;
+
+        //             boolean selected = getTableRow().isSelected();
+        //             if (selected) {
+        //             }
+        //             else if (color != null) {
+        //                 String textColor = getInverseTextColor(color);
+        //                 setStyle(String.format(
+        //                     "-fx-background-color: %s; -fx-text-fill: %s;",
+        //                     toRgbString(color), textColor
+        //                 ));
+
+        //             } else if (highlightMap.isEmpty()) {
+        //                 setStyle("");
+        //             } else {
+        //                 setStyle("-fx-background-color: transparent");
+        //             }
+        //         }
+        //     }
+        // });
 
         table.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
             table.refresh();  // force colors re-evaluation
@@ -181,7 +196,7 @@ public class TableViewController {
         try {
             String json = jsonLineReader.getString(bounds);
             JsonNode jsonNode = mapper.readTree(json);
-            return jsonNode.findValue(field);
+            return field == null ? jsonNode : jsonNode.findValue(field);
         } catch (JsonMappingException e) {
             throw new RuntimeException(e);
         } catch (JsonProcessingException e) {
@@ -199,11 +214,93 @@ public class TableViewController {
     public void reset(JsonLineReader jsonLineReader) {
         this.jsonLineReader = jsonLineReader;
         allEntries.clear();
+        columnMap.clear();
+        table.getColumns().clear();
+        table.getColumns().add(numberColumn);
+        table.getColumns().add(valueColumn);
         filteredEntries.setPredicate(e -> true);
     }
 
     public void addObject(LineBounds jsonObject) {
         allEntries.add( jsonObject );
+
+        // load top-level properties
+
+        try {
+            String str = this.getString(jsonObject);
+            JsonNode node = mapper.readTree(str);
+
+            if (!node.isObject())
+                return;
+
+            for (Iterator<Map.Entry<String, JsonNode>> it = node.fields(); it.hasNext(); ) {
+                Map.Entry<String, JsonNode> field = it.next();
+                String key = field.getKey();
+                JsonNode value = field.getValue();
+
+                if (columnMap.containsKey(key)) {
+                    continue;
+                }
+                TableColumn<LineBounds, String> column = new TableColumn<>(key);
+                setupColumn(column, key);
+                table.getColumns().add(table.getColumns().size() - 1, column);
+                columnMap.put(key, column);
+            }
+        }
+        catch (JsonMappingException e) {
+            throw new RuntimeException(e);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void setupColumn(TableColumn<LineBounds, String> column, String key)
+    {
+
+        column.setCellValueFactory(param -> {
+            JsonNode jsonNode = this.getNode(param.getValue(), key);
+            if (jsonNode == null) {
+                return new ReadOnlyStringWrapper("");
+            }
+            return new ReadOnlyStringWrapper(jsonNode.toString());
+        });
+        column.setPrefWidth(100);
+        column.setResizable(true);
+        column.setReorderable(true);
+
+        column.setCellFactory(col -> new TableCell<>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setStyle("");
+                } else {
+                    setText(item);
+                    LineBounds row = table.getItems().get(getIndex());
+                    Color color = highlightMap.get(row);
+
+                    if (searchTerm != null && !searchTerm.isEmpty() && item.toLowerCase().contains(searchTerm.toLowerCase()))
+                        color = Color.YELLOW;
+
+                    boolean selected = getTableRow().isSelected();
+                    if (selected) {
+                    }
+                    else if (color != null) {
+                        String textColor = getInverseTextColor(color);
+                        setStyle(String.format(
+                            "-fx-background-color: %s; -fx-text-fill: %s;",
+                            toRgbString(color), textColor
+                        ));
+
+                    } else if (highlightMap.isEmpty()) {
+                        setStyle("");
+                    } else {
+                        setStyle("-fx-background-color: transparent");
+                    }
+                }
+            }
+        });
     }
 
     public void scrollToRow(int index) {
@@ -289,11 +386,11 @@ public class TableViewController {
     }
 
     public void saveColumnLayout(ObjectMapper mapper) {
-        TableColumnLayoutUtil.saveColumnLayout(table, "filterColumns", mapper);
+        TableColumnLayoutUtil.saveColumnLayout(table, "tableColumns", mapper);
     }
 
     public void loadColumnLayout(ObjectMapper mapper) {
-        TableColumnLayoutUtil.loadColumnLayout(table, "filterColumns", mapper);
+        TableColumnLayoutUtil.loadColumnLayout(table, "tableColumns", mapper);
     }
 
 
