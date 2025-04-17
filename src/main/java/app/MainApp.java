@@ -109,6 +109,7 @@ public class MainApp extends Application
         fileListController.setOnFileOpen(() -> openFile(primaryStage));
         fileListController.setOnFileClose((String fileName) -> {
             jsonLineReader.removeFile(fileName);
+            saveOpenFileList();
         });
 
         filterViewController.loadRulesFromPreferences();
@@ -217,6 +218,11 @@ public class MainApp extends Application
         this.tryToOpenFile(files, true);
     }
 
+    private void saveOpenFileList()
+    {
+        AppSettings.saveLastOpenedFile(fileListController.getOpenFiles());
+    }
+
     private boolean tryToOpenFile(List<String> files, boolean saveToSettings)
     {
         if (files == null || files.isEmpty())
@@ -234,7 +240,7 @@ public class MainApp extends Application
         }
 
         if (saveToSettings) {
-            AppSettings.saveLastOpenedFile(fileListController.getOpenFiles());
+            saveOpenFileList();
         }
 
         return true;

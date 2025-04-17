@@ -12,10 +12,12 @@ import javafx.beans.property.StringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ListChangeListener;
 import javafx.collections.ObservableList;
+import javafx.event.Event;
 import javafx.geometry.Insets;
 import javafx.scene.control.Button;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.MenuItem;
+import javafx.scene.control.SelectionMode;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableRow;
 import javafx.scene.control.TableView;
@@ -66,6 +68,8 @@ public class FileListController
 
         table.setPrefWidth(200);
         table.setEditable(true);
+        table.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
+        table.getSelectionModel().setCellSelectionEnabled(true);
 
         files.addListener((ListChangeListener<FileElem>) change -> {
             while (change.next()) {
@@ -79,6 +83,15 @@ public class FileListController
             }
         });
 
+        Consumer<Event> removeSelected = event -> {
+            var selection = table.getSelectionModel().getSelectedItems().stream().toList();
+            selection.forEach( it -> {
+                if (it != null) {
+                    files.remove(it);
+                }
+            });
+        };
+
         // ACTIONS
         // 1. remove rows
         table.setOnKeyPressed(event -> {
@@ -86,10 +99,7 @@ public class FileListController
                 onFileOpen.run();
             }
             else if (event.getCode() == KeyCode.DELETE) {
-                FileElem selected = table.getSelectionModel().getSelectedItem();
-                if (selected != null) {
-                    files.remove(selected);
-                }
+                removeSelected.accept(event);
             }
         });
 
@@ -99,12 +109,7 @@ public class FileListController
             ContextMenu contextMenu = new ContextMenu();
 
             MenuItem deleteItem = new MenuItem("Close");
-            deleteItem.setOnAction(e -> {
-                FileElem item = row.getItem();
-                if (item != null) {
-                    files.remove(item);
-                }
-            });
+            deleteItem.setOnAction(e -> removeSelected.accept(e));
 
             contextMenu.getItems().add(deleteItem);
             row.contextMenuProperty().bind(
