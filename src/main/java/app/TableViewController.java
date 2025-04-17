@@ -143,7 +143,7 @@ public class TableViewController {
             return node
                 .filter(it -> it.node() != null)
                 .map(it -> it.node().findValue(field))
-                .map(JsonNode::asText)
+                .map(JsonNode::toString)
                 .map(cutString);
         }
 
@@ -297,8 +297,8 @@ public class TableViewController {
                 if (!rule.enabled.get()) {
                     continue;
                 }
-                hasInclude = hasInclude || rule.action.get() == FilterViewController.ActionType.INCLUDE;
-                hasExclude = hasExclude || rule.action.get() == FilterViewController.ActionType.EXCLUDE;
+                hasInclude = hasInclude || rule.action.get() == FilterViewController.ActionType.include;
+                hasExclude = hasExclude || rule.action.get() == FilterViewController.ActionType.exclude;
                 aliveRuleCount++;
             }
 
@@ -320,11 +320,12 @@ public class TableViewController {
             if (json == null || json.isEmpty())
                 return true;
 
+            long objIndex = row.objIndex();
             for (FilterRule rule : filterRules) {
                 if (!rule.enabled.get()) {
                     continue;
                 }
-                if (rule.matches(json)) {
+                if (rule.matches(json, objIndex)) {
                     lastMatch = rule;
                 }
             }
@@ -332,12 +333,12 @@ public class TableViewController {
             if (lastMatch == null)
                 return defaultVisibility;
 
-            if (lastMatch.action.get() == FilterViewController.ActionType.HIGHLIGHT) {
+            if (lastMatch.action.get() == FilterViewController.ActionType.highlight) {
                 highlightMap.put(row, lastMatch.color.get());
                 return true;
             }
 
-            return lastMatch.action.get() == FilterViewController.ActionType.INCLUDE;
+            return lastMatch.action.get() == FilterViewController.ActionType.include;
         }
 
         return true;

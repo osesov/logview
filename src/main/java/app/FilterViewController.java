@@ -21,12 +21,12 @@ import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 
 public class FilterViewController {
-    public enum ActionType { INCLUDE, EXCLUDE, HIGHLIGHT }
-    public enum MatchType { REGEX, PLAIN, JSONPATH }
+    public enum ActionType { include, exclude, highlight }
+    public enum MatchType { regex, case_sensitive, case_insensitive, expr }
 
     public static class FilterRule {
-        public final ObjectProperty<ActionType> action = new SimpleObjectProperty<>(ActionType.INCLUDE);
-        public final ObjectProperty<MatchType> type = new SimpleObjectProperty<>(MatchType.PLAIN);
+        public final ObjectProperty<ActionType> action = new SimpleObjectProperty<>(ActionType.highlight);
+        public final ObjectProperty<MatchType> type = new SimpleObjectProperty<>(MatchType.case_insensitive);
         public final StringProperty expression = new SimpleStringProperty("");
         public final ObjectProperty<Color> color = new SimpleObjectProperty<>(Color.YELLOW);
         public final BooleanProperty enabled = new SimpleBooleanProperty(true);
@@ -44,31 +44,44 @@ public class FilterViewController {
         public static FilterRule fromSerializable(Map<String, String> map) {
             FilterRule rule = new FilterRule();
             rule.action.set(ActionType.valueOf(map.getOrDefault("action", "INCLUDE")));
-            rule.type.set(MatchType.valueOf(map.getOrDefault("type", "PLAIN")));
+            rule.type.set(MatchType.valueOf(map.getOrDefault("type", MatchType.case_insensitive.name())));
             rule.expression.set(map.getOrDefault("expression", ""));
             rule.color.set(Color.web(map.getOrDefault("color", "#ffff00")));
             rule.enabled.set(Boolean.parseBoolean(map.getOrDefault("enabled", "true")));
             return rule;
         }
 
-        public boolean matches(String row) {
+        public boolean matches(String row, long objIndex) {
             String exprText = expression.get();
             return switch (type.get()) {
-                case PLAIN -> row.contains(exprText);
+                case case_sensitive -> row.contains(exprText);
 
-                case REGEX -> {
+                case case_insensitive -> row.toLowerCase().contains(exprText.toLowerCase());
+
+                case regex -> {
                     Pattern pattern = Pattern.compile(exprText, Pattern.CASE_INSENSITIVE);
                     yield pattern.matcher(row).find();
                 }
 
-                case JSONPATH -> {
-                    try {
-                        String json = AppSettings.getMapper().writeValueAsString(row);
-                        Object result = JsonPath.read(json, exprText);
-                        yield result != null;
-                    } catch (Exception e) {
-                        yield false;
-                    }
+                case expr -> {
+                    // todo: preparse?
+                    Object jsonContext = JsonPathExpressionEvaluator.parseJson(row);
+                    yield JsonPathExpressionEvaluator.evaluateBoolean(exprText, jsonContext);
+                    // try {
+
+                    //     String json = "[" + row + "]";
+                    //     try {
+                    //         List<Object> result = JsonPath.<List<Object>>read(json, exprText);
+                    //         yield result != null && result.size() > 0;
+                    //     } catch (Exception e) {
+                    //         System.err.printf("[%s]: Failed to process JSONPath (%s): %s\n", objIndex, exprText, e.getMessage());
+                    //         // e.printStackTrace();
+                    //         yield false;
+                    //     }
+                    // } catch (Exception e) {
+                    //     System.err.printf("[%s]: Failed to parse JSON: %s\n", objIndex, e.getMessage());
+                    //     yield false;
+                    // }
                 }
             };
         }

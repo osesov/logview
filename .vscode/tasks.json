@@ -46,6 +46,7 @@
         {
             "label": "profile",
             "type": "shell",
+            // try -o tree
             "command": "/opt/async-profiler/bin/asprof -d 15 -f ff.html $(pgrep -f app.MainApp)",
             "group": "test",
             "presentation": { "clear": true },

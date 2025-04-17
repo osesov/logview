@@ -67,6 +67,10 @@ public class AppSettings {
     public static List<Map<String, String>> loadFilterRules() {
         String json = prefs.get(FILTER_KEY, "");
 
+        if (json == null || json.isEmpty()) {
+            return List.of();
+        }
+
         List<Map<String, String>> list;
         try {
             list = mapper.readValue(
