@@ -17,11 +17,12 @@ import java.util.*;
 
 public class JsonLineReader {
 
-    private record FileChunk(Path path, long fileOffset, long size, MappedByteBuffer buffer) {}
+    private record FileChunk(Path path, int fileId, long fileOffset, long size, MappedByteBuffer buffer) {}
 
     private static final int MAX_CHUNK_SIZE = Integer.MAX_VALUE - 8;
     private static final int MAX_PAGE_SIZE = 65_536;
 
+    private final Map<String, Integer> fileIndexMap = new HashMap<>();
     private final List<FileChunk> chunks = new ArrayList<>();
     private final List<LineBounds> lines = new ArrayList<>();
     private final Map<LineBounds, String> cache = new HashMap<>();
@@ -33,7 +34,6 @@ public class JsonLineReader {
     private Label statusBar;
 
     JsonLineReader(TableViewController tableController, Label statusBar, FileListController fileListController) {
-        // Default constructor
         this.tableController = tableController;
         this.fileListController = fileListController;
         this.statusBar = statusBar;
@@ -44,6 +44,7 @@ public class JsonLineReader {
         lines.clear();
         cache.clear();
         rowIndex = 0;
+        fileIndex = 0;
 
         for (Path path : files) {
             if (!Files.exists(path)) {
@@ -54,9 +55,28 @@ public class JsonLineReader {
         }
     }
 
+    public void removeFile(String fileName) {
+        Integer fileId = fileIndexMap.get(fileName);
+        if (fileId == null) {
+            return; // file not found
+        }
+
+        lines.removeIf(line -> line.fileId() == fileId);
+        chunks.removeIf(chunk -> chunk.fileId() == fileId);
+        tableController.removeFile(fileName, fileId);
+        fileIndexMap.remove(fileName);
+    }
+
     public void addFile(Path path)
     {
         int chunkIndex = chunks.size();
+        String fileName = path.toString();
+
+        if (fileIndexMap.containsKey(path.toString())) {
+            return; // already loaded
+        } else {
+            fileIndexMap.put(fileName, fileIndex);
+        }
 
         try (FileChannel channel = FileChannel.open(path, StandardOpenOption.READ)) {
             long size = channel.size();
@@ -67,10 +87,10 @@ public class JsonLineReader {
                 long remaining = size - offset;
                 long mapSize = Math.min(remaining, MAX_CHUNK_SIZE);
                 MappedByteBuffer buffer = channel.map(FileChannel.MapMode.READ_ONLY, offset, mapSize);
-                chunks.add(new FileChunk(path, offset, mapSize, buffer));
+                chunks.add(new FileChunk(path, fileIndex, offset, mapSize, buffer));
 
                 int len = buffer.limit();
-                ScanChunk consumed = scanChunk(fileIndex, buffer, blockOffset, chunkIndex, rowIndex);
+                ScanChunk consumed = scanChunk(fileName, fileIndex, buffer, blockOffset, chunkIndex, rowIndex);
                 if (consumed.pos < len) { // incomplete, overlap buffers
                     offset += consumed.pos % MAX_PAGE_SIZE * MAX_PAGE_SIZE;
                     blockOffset = consumed.pos % MAX_PAGE_SIZE;
@@ -96,7 +116,7 @@ public class JsonLineReader {
 
     private record ScanChunk(int pos, long rowIndex) {}
 
-    private ScanChunk scanChunk(int fileIndex, ByteBuffer buffer, int blockOffset, int chunkIndex, long rowIndex) {
+    private ScanChunk scanChunk(String fileName, int fileIndex, ByteBuffer buffer, int blockOffset, int chunkIndex, long rowIndex) {
         JsonValueScanner scanner = new JsonValueScanner();
         int pos = blockOffset;
         while (pos < buffer.limit()) {
@@ -108,7 +128,7 @@ public class JsonLineReader {
 
             if (start >= end)
                 break;
-            LineBounds line = new LineBounds(fileIndex, chunkIndex, start, end, rowIndex++);
+            LineBounds line = new LineBounds(fileName, fileIndex, chunkIndex, start, end, rowIndex++);
             pos = end;
 
             lines.add(line);
@@ -148,4 +168,5 @@ public class JsonLineReader {
     public List<LineBounds> getAllBounds() {
         return lines;
     }
+
 }

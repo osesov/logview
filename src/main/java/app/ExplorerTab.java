@@ -6,14 +6,9 @@ import javafx.scene.control.TabPane;
 public class ExplorerTab
 {
     private TabPane tabPane = new TabPane();
-    private FileListController fileListController;
-    private FilterViewController filterViewController;
 
     ExplorerTab(FileListController fileListController, FilterViewController filterViewController)
     {
-        this.fileListController = fileListController;
-        this.filterViewController = filterViewController;
-
         tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
 
         Tab filesTab = new Tab("Files", fileListController.getView());

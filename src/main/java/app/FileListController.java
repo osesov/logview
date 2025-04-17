@@ -2,8 +2,8 @@ package app;
 
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.function.Consumer;
 
-import app.FilterViewController.FilterRule;
 import javafx.beans.binding.Bindings;
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.SimpleBooleanProperty;
@@ -45,15 +45,13 @@ public class FileListController
         }
     }
 
-    private final TableViewController tableController;
     private final TableView<FileElem> table = new TableView<>();
     private final ObservableList<FileElem> files = FXCollections.observableArrayList();
     private Runnable onFileOpen = () -> {};
-
+    private Consumer<String> onFileClose = (String fileName) -> {};
 
     public FileListController(TableViewController tableController)
     {
-        this.tableController = tableController;
         TableColumn<FileElem, Boolean> enabledCol = new TableColumn<>("✔");
         enabledCol.setCellValueFactory(data -> data.getValue().enabled);
         enabledCol.setCellFactory(CheckBoxTableCell.forTableColumn(enabledCol));
@@ -100,7 +98,7 @@ public class FileListController
             TableRow<FileElem> row = new TableRow<>();
             ContextMenu contextMenu = new ContextMenu();
 
-            MenuItem deleteItem = new MenuItem("Delete");
+            MenuItem deleteItem = new MenuItem("Close");
             deleteItem.setOnAction(e -> {
                 FileElem item = row.getItem();
                 if (item != null) {
@@ -116,6 +114,15 @@ public class FileListController
             return row;
         });
 
+        files.addListener((ListChangeListener<FileElem>) change -> {
+            while (change.next()) {
+                if (change.wasRemoved()) {
+                    for (FileElem file : change.getRemoved()) {
+                        onFileClose.accept(file.filePath);
+                    }
+                }
+            }
+        });
     }
 
     private VBox view;
@@ -147,12 +154,6 @@ public class FileListController
         table.setItems(files);
     }
 
-    public void removeFile(String fileName)
-    {
-        files.remove(fileName);
-        table.setItems(files);
-    }
-
     public List<String> getOpenFiles()
     {
         return this.files.stream()
@@ -163,5 +164,9 @@ public class FileListController
     public void setOnFileOpen(Runnable onFileOpen)
     {
         this.onFileOpen = onFileOpen;
+    }
+
+    public void setOnFileClose(Consumer<String> object) {
+        this.onFileClose = object;
     }
 }

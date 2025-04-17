@@ -106,6 +106,9 @@ public class MainApp extends Application
         });
 
         fileListController.setOnFileOpen(() -> openFile(primaryStage));
+        fileListController.setOnFileClose((String fileName) -> {
+            jsonLineReader.removeFile(fileName);
+        });
 
         filterViewController.loadRulesFromPreferences();
         filterViewController.loadColumnLayout();

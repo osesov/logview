@@ -7,13 +7,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Predicate;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 import app.FilterViewController.FilterRule;
 import javafx.beans.property.ReadOnlyLongWrapper;
@@ -67,76 +64,6 @@ public class TableViewController {
 
         setupColumn(valueColumn, null);
         table.getColumns().add(valueColumn);
-        // TableColumn<LineBounds, String> levelColumn = new TableColumn<>("Level");
-        // levelColumn.setCellValueFactory(param -> new ReadOnlyStringWrapper(this.getField(param.getValue(), "level")));
-        // // levelColumn.prefWidthProperty().bind(table.widthProperty().subtract(2));
-        // table.getColumns().add(levelColumn);
-
-        // TableColumn<LineBounds, String> timeColumn = new TableColumn<>("Time");
-        // timeColumn.setCellValueFactory(param -> {
-        //     var timestamp = this.getNode(param.getValue(), "timestamp").asLong(0);
-        //     var instance = java.time.Instant.ofEpochMilli(timestamp);
-        //     var zoneId = java.time.ZoneId.systemDefault();
-        //     var localDateTime = java.time.LocalDateTime.ofInstant(instance, zoneId);
-        //     var string = localDateTime.format(formatter);
-        //     return new ReadOnlyStringWrapper(string);
-        // });
-        // // timeColumn.prefWidthProperty().bind(table.widthProperty().subtract(2));
-        // table.getColumns().add(timeColumn);
-
-        // TableColumn<LineBounds, String> messageColumn = new TableColumn<>("Message");
-        // messageColumn.setCellValueFactory(param -> new ReadOnlyStringWrapper(this.getField(param.getValue(), "message")));
-        // // timeColumn.prefWidthProperty().bind(table.widthProperty().subtract(2));
-        // table.getColumns().add(messageColumn);
-
-        // TableColumn<LineBounds, String> argsColumn = new TableColumn<>("Args");
-        // argsColumn.setCellValueFactory(param -> new ReadOnlyStringWrapper(this.getField(param.getValue(), "args")));
-        // argsColumn.prefWidthProperty().bind(table.widthProperty()
-        //     .subtract(table.getColumns().stream()
-        //         .filter(column -> column != argsColumn)
-        //         .mapToDouble(TableColumn::getWidth)
-        //         .sum() + 2));
-        // // timeColumn.prefWidthProperty().bind(table.widthProperty().subtract(2));
-        // table.getColumns().add(argsColumn);
-
-        // for (TableColumn<LineBounds, ?> column : table.getColumns()) {
-        //     column.setResizable(true);
-        //     column.setReorderable(true);
-        // }
-
-        // argsColumn.setCellFactory(col -> new TableCell<>() {
-        //     @Override
-        //     protected void updateItem(String item, boolean empty) {
-        //         super.updateItem(item, empty);
-        //         if (empty || item == null) {
-        //             setText(null);
-        //             setStyle("");
-        //         } else {
-        //             setText(item);
-        //             LineBounds row = table.getItems().get(getIndex());
-        //             Color color = highlightMap.get(row);
-
-        //             if (searchTerm != null && !searchTerm.isEmpty() && item.toLowerCase().contains(searchTerm.toLowerCase()))
-        //                 color = Color.YELLOW;
-
-        //             boolean selected = getTableRow().isSelected();
-        //             if (selected) {
-        //             }
-        //             else if (color != null) {
-        //                 String textColor = getInverseTextColor(color);
-        //                 setStyle(String.format(
-        //                     "-fx-background-color: %s; -fx-text-fill: %s;",
-        //                     toRgbString(color), textColor
-        //                 ));
-
-        //             } else if (highlightMap.isEmpty()) {
-        //                 setStyle("");
-        //             } else {
-        //                 setStyle("-fx-background-color: transparent");
-        //             }
-        //         }
-        //     }
-        // });
 
         table.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
             table.refresh();  // force colors re-evaluation
@@ -146,20 +73,8 @@ public class TableViewController {
             }
         });
 
-        // table.setItems(entries);
         table.setItems(filteredEntries);
         filteredEntries.setPredicate(row -> this.filterPredicate(row));
-
-        // table.setRowFactory(tv -> {
-        //     TableRow<LineBounds> row = new TableRow<>();
-        //     row.setOnMouseClicked(event -> {
-        //         if (!row.isEmpty()) {
-        //             String rowData = this.getString(row.getItem());
-        //             treeController.addObject(rowData);
-        //         }
-        //     });
-        //     return row;
-        // });
     }
 
     private void forceFilterUpdate()
@@ -168,38 +83,13 @@ public class TableViewController {
     }
 
     public void setSearchString(String query) {
-        // Predicate<LineBounds> predicate;
-
         searchTerm = query;
-
-        // if (query.startsWith("re:")) {
-        //     Pattern pattern = Pattern.compile(query.substring(3), Pattern.CASE_INSENSITIVE);
-        //     predicate = entry -> pattern.matcher(this.getString(entry)).find();
-        // } else {
-        //     String lower = query.toLowerCase();
-        //     predicate = entry -> this.getString(entry).toLowerCase().contains(lower);
-        // }
-
-        // filteredEntries.setPredicate(predicate);
-        table.refresh();
+        forceFilterUpdate();
     }
 
     private String getString(LineBounds bounds) {
         return this.jsonLineReader.getString(bounds);
     }
-
-    // private String getField(LineBounds bounds, String field) {
-    //     var node = this.getNode(bounds, field);
-    //     if (node == null) {
-    //         return "";
-    //     }
-
-    //     if (node.isTextual()) {
-    //         return node.asText();
-    //     }
-
-    //     return node.toString();
-    // }
 
     private JsonNode getNode(LineBounds bounds, String field) {
         try {
@@ -227,7 +117,6 @@ public class TableViewController {
         table.getColumns().clear();
         table.getColumns().add(numberColumn);
         table.getColumns().add(valueColumn);
-        // filteredEntries.setPredicate(e -> true);
     }
 
     public void addObject(LineBounds jsonObject) {
@@ -443,5 +332,9 @@ public class TableViewController {
         }
 
         forceFilterUpdate();
+    }
+
+    public void removeFile(String fileName, int fileId) {
+        allEntries.removeIf(line -> line.fileId() == fileId);
     }
 }
