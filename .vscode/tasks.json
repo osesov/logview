@@ -42,6 +42,13 @@
             "type": "shell",
             "command": "mvn -B javafx:run",
             "group": "test"
+        },
+        {
+            "label": "profile",
+            "type": "shell",
+            "command": "/opt/async-profiler/bin/asprof -d 15 -f ff.html $(pgrep -f app.MainApp)",
+            "group": "test",
+            "presentation": { "clear": true },
         }
     ]
 }

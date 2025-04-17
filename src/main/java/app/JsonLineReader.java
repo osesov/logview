@@ -91,7 +91,9 @@ public class JsonLineReader {
 
                 int len = buffer.limit();
                 ScanChunk consumed = scanChunk(fileName, fileIndex, buffer, blockOffset, chunkIndex, rowIndex);
-                if (consumed.pos < len) { // incomplete, overlap buffers
+
+                // if file ends with spaces, this condition fires.
+                if (false && consumed.pos < len) { // incomplete, overlap buffers
                     offset += consumed.pos % MAX_PAGE_SIZE * MAX_PAGE_SIZE;
                     blockOffset = consumed.pos % MAX_PAGE_SIZE;
                 }
@@ -121,13 +123,16 @@ public class JsonLineReader {
         int pos = blockOffset;
         while (pos < buffer.limit()) {
             Optional<int[]> match = scanner.nextValue(buffer, pos);
-            if (match.isEmpty()) break;
+            if (match.isEmpty())
+                break;
 
             int start = match.get()[0];
             int end = match.get()[1];
 
-            if (start >= end)
+            if (start >= end) {
+                pos = start;
                 break;
+            }
             LineBounds line = new LineBounds(fileName, fileIndex, chunkIndex, start, end, rowIndex++);
             pos = end;
 

@@ -6,15 +6,14 @@ import java.nio.file.Path;
 import java.util.List;
 
 import app.FilterViewController.FilterRule;
+import app.debug.TraceLogger;
 import javafx.application.Application;
 import javafx.collections.ListChangeListener;
-import javafx.geometry.Orientation;
 import javafx.geometry.Insets;
 import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
-import javafx.scene.control.SplitPane;
 import javafx.scene.control.TextField;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
@@ -88,6 +87,7 @@ public class MainApp extends Application
             filterViewController.saveRulesToPreferences();
             filterViewController.saveColumnLayout();
             tableViewController.saveColumnLayout();
+            TraceLogger.save("trace.json");
         });
 
         // apply filters when cells are edited

@@ -6,13 +6,16 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.JsonNode;
 
 import app.FilterViewController.FilterRule;
+import app.debug.ArgBuilder;
+import app.debug.Trace;
+import app.debug.TraceScope;
 import javafx.beans.property.ReadOnlyLongWrapper;
 import javafx.beans.property.ReadOnlyStringWrapper;
 import javafx.collections.FXCollections;
@@ -27,6 +30,13 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 
 public class TableViewController {
+    private static enum StringType
+    {
+        FULL, TITLE,
+    }
+
+    private static record CacheItem(JsonNode node, String string) {}
+
     private TableView<LineBounds> table = new TableView<>();
     private JsonLineReader jsonLineReader = null;
 
@@ -42,6 +52,8 @@ public class TableViewController {
     private TableColumn<LineBounds, Long> numberColumn;
     private Set<Integer> disabledFiles = new HashSet<>();
     private List<FilterRule> filterRules = null;
+    private final Map<LineBounds, CacheItem> cache = new HashMap<>();
+    private int maxStringLength = 256;
 
     public TableViewController(TreeViewController treeController) {
         this.treeController = treeController;
@@ -50,26 +62,29 @@ public class TableViewController {
 
         numberColumn = new TableColumn<>("#");
         numberColumn.setCellValueFactory(param -> new ReadOnlyLongWrapper(param.getValue().objIndex() + 1).asObject());
-        // levelColumn.prefWidthProperty().bind(table.widthProperty().subtract(2));
         table.getColumns().add(numberColumn);
 
         valueColumn = new TableColumn<>("Value");
         valueColumn.setCellValueFactory(param -> {
-            var node = this.getString(param.getValue());
-            if (node == null) {
+            var node = this.getString(param.getValue(), null, StringType.TITLE);
+            if (node.isEmpty()) {
                 return new ReadOnlyStringWrapper("");
             }
-            return new ReadOnlyStringWrapper(node.toString());
+            return new ReadOnlyStringWrapper(node.get());
         });
+        // valueColumn.prefWidthProperty().bind(table.widthProperty().subtract(2));
 
-        setupColumn(valueColumn, null);
+        setupColumn(valueColumn, null, 400);
         table.getColumns().add(valueColumn);
 
         table.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
-            table.refresh();  // force colors re-evaluation
-            if (newVal != null) {
-                String rowData = this.getString(newVal);
-                treeController.addObject(rowData);
+            try (TraceScope ignored = new TraceScope("tableSelectionChanged",
+                ArgBuilder.of().putLong("obj", newVal != null ? newVal.objIndex() : -1).build()))
+            {
+                // table.refresh();  // force colors re-evaluation
+                if (newVal != null) {
+                    this.getString(newVal, null, StringType.FULL).ifPresent(treeController::setObject);
+                }
             }
         });
 
@@ -87,20 +102,73 @@ public class TableViewController {
         forceFilterUpdate();
     }
 
-    private String getString(LineBounds bounds) {
-        return this.jsonLineReader.getString(bounds);
+    @Trace
+    private Optional<CacheItem> getCacheItem(LineBounds bounds) {
+        // return Optional.empty();
+        return Optional.ofNullable(cache.computeIfAbsent(bounds, b -> {
+            try ( TraceScope ignoredInner = new TraceScope("getCacheItemInner",
+                ArgBuilder.of().putLong("obj", bounds.objIndex()).build()))
+            {
+                String str = this.jsonLineReader.getString(b);
+                if (b == null || str == null || str.isEmpty()) {
+                    return null;
+                }
+
+                try {
+                    JsonNode jsonNode = AppSettings.getMapper().readTree(str);
+                    return new CacheItem(jsonNode, str);
+                }
+                catch (Exception e) {
+                    e.printStackTrace();
+                    return null;
+                }
+            }
+        }));
     }
 
-    private JsonNode getNode(LineBounds bounds, String field) {
-        try {
-            String json = jsonLineReader.getString(bounds);
-            JsonNode jsonNode = AppSettings.getMapper().readTree(json);
-            return field == null ? jsonNode : jsonNode.findValue(field);
-        } catch (JsonMappingException e) {
-            throw new RuntimeException(e);
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException(e);
+    @Trace
+    private Optional<String> getString(LineBounds bounds, String field, StringType type) {
+        Optional<CacheItem> node = this.getCacheItem(bounds);
+        Function<String, String> cutString = (it) -> {
+            if (type == StringType.FULL) {
+                return it;
+            }
+            else {
+                boolean cut = it.length() > maxStringLength;
+                return (cut ? it.substring(0, maxStringLength).replace("\n", "\\n") + "..." : it);
+            }
+        };
+
+        if (field != null) {
+            return node
+                .filter(it -> it.node() != null)
+                .map(it -> it.node().findValue(field))
+                .map(JsonNode::asText)
+                .map(cutString);
         }
+
+        return node
+            .map(it -> it.string())
+            .map(cutString);
+    }
+
+    @Trace
+    private Optional<JsonNode> getNode(LineBounds bounds, String field) {
+        Optional<JsonNode> node = this.getCacheItem(bounds)
+            .filter(it -> it.node() != null)
+            .map(it -> it.node())
+            .filter(it -> it != null)
+            ;
+
+
+
+        if (field != null) {
+            return node.map(it -> it.findValue(field))
+                .filter(it -> it != null)
+                ;
+        }
+
+        return node;
     }
 
     public VBox getView() {
@@ -110,6 +178,7 @@ public class TableViewController {
         return box;
     }
 
+    @Trace
     public void reset(JsonLineReader jsonLineReader) {
         this.jsonLineReader = jsonLineReader;
         allEntries.clear();
@@ -119,53 +188,52 @@ public class TableViewController {
         table.getColumns().add(valueColumn);
     }
 
+    @Trace
     public void addObject(LineBounds jsonObject) {
         allEntries.add( jsonObject );
 
         // load top-level properties
 
-        try {
-            String str = this.getString(jsonObject);
-            JsonNode node = AppSettings.getMapper().readTree(str);
+        JsonNode node = this.getNode(jsonObject, null).orElse(null);
+        if (node == null)
+            return;
 
-            if (!node.isObject())
-                return;
+        if (!node.isObject())
+            return;
 
-            for (Iterator<Map.Entry<String, JsonNode>> it = node.fields(); it.hasNext(); ) {
-                Map.Entry<String, JsonNode> field = it.next();
-                String key = field.getKey();
+        for (Iterator<Map.Entry<String, JsonNode>> it = node.fields(); it.hasNext(); ) {
+            Map.Entry<String, JsonNode> field = it.next();
+            String key = field.getKey();
 
-                if (columnMap.containsKey(key)) {
-                    continue;
-                }
-                TableColumn<LineBounds, String> column = new TableColumn<>(key);
-                setupColumn(column, key);
-                table.getColumns().add(table.getColumns().size() - 1, column);
-                columnMap.put(key, column);
+            if (columnMap.containsKey(key)) {
+                continue;
             }
-        }
-        catch (JsonMappingException e) {
-            throw new RuntimeException(e);
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException(e);
+            TableColumn<LineBounds, String> column = new TableColumn<>(key);
+            setupColumn(column, key, 0);
+            table.getColumns().add(table.getColumns().size() - 1, column);
+            columnMap.put(key, column);
         }
     }
 
-    private void setupColumn(TableColumn<LineBounds, String> column, String key)
+    @Trace
+    private void setupColumn(TableColumn<LineBounds, String> column, String key, int width)
     {
-
         column.setCellValueFactory(param -> {
-            JsonNode jsonNode = this.getNode(param.getValue(), key);
-            if (jsonNode == null) {
+            Optional<String> str = this.getString(param.getValue(), key, StringType.TITLE);
+            if (str.isEmpty()) {
                 return new ReadOnlyStringWrapper("");
             }
-            return new ReadOnlyStringWrapper(jsonNode.toString());
+            return new ReadOnlyStringWrapper(str.get());
         });
-        column.setPrefWidth(100);
+
+        if (!column.prefWidthProperty().isBound()) {
+            column.setPrefWidth(width > 0 ? width : 100);
+        }
         column.setResizable(true);
         column.setReorderable(true);
 
         column.setCellFactory(col -> new TableCell<>() {
+            @Trace
             @Override
             protected void updateItem(String item, boolean empty) {
                 super.updateItem(item, empty);
@@ -174,6 +242,7 @@ public class TableViewController {
                     setStyle("");
                 } else {
                     setText(item);
+
                     LineBounds row = table.getItems().get(getIndex());
                     Color color = highlightMap.get(row);
 
@@ -212,6 +281,7 @@ public class TableViewController {
         table.requestFocus();
     }
 
+    @Trace
     private boolean filterPredicate(LineBounds row)
     {
         boolean hasInclude = false;
@@ -241,10 +311,13 @@ public class TableViewController {
             FilterRule lastMatch = null;
 
             // if any include/exclude rule exists then default is to hide. If none, show all
-            String json = this.getString(row);
+            String json = this.getString(row, null, StringType.FULL).orElse(null);
             if (!hasRules) {
                 return true;
             }
+
+            if (json == null || json.isEmpty())
+                return true;
 
             for (FilterRule rule : filterRules) {
                 if (!rule.enabled.get()) {
@@ -269,6 +342,7 @@ public class TableViewController {
         return true;
     }
 
+    @Trace
     public void applyFilters(List<FilterRule> rules) {
         highlightMap.clear();
         this.filterRules = rules;
@@ -301,6 +375,7 @@ public class TableViewController {
     }
 
 
+    @Trace
     public void selectNextMatch() {
 
         if (searchTerm == null || searchTerm.isEmpty())
@@ -312,9 +387,13 @@ public class TableViewController {
         for (int i = 1; i <= rowCount; i++) {
             int currentIndex = (startIndex + i) % rowCount;
             LineBounds row = table.getItems().get(currentIndex);
-            if (row == null) continue;
+            if (row == null)
+                continue;
 
-            String rowData = this.getString(row);
+            String rowData = this.getString(row, null, StringType.FULL).orElse(null);
+            if (rowData == null)
+                continue;
+
             if (rowData.toLowerCase().contains(searchTerm.toLowerCase())) {
                 table.getSelectionModel().clearAndSelect(currentIndex);
                 table.scrollTo(currentIndex);
@@ -324,6 +403,7 @@ public class TableViewController {
         }
     }
 
+    @Trace
     public void setFileEnabled(int fileId, boolean enabled) {
         if (enabled) {
             disabledFiles.remove(fileId);
@@ -334,7 +414,12 @@ public class TableViewController {
         forceFilterUpdate();
     }
 
+    @Trace
     public void removeFile(String fileName, int fileId) {
         allEntries.removeIf(line -> line.fileId() == fileId);
+    }
+
+    public void setMaxStringLength(int maxStringLength) {
+        this.maxStringLength = maxStringLength;
     }
 }

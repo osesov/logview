@@ -22,7 +22,7 @@ public class TreeViewController {
         return box;
     }
 
-    public void addObject(String jsonObject) {
+    public void setObject(String jsonObject) {
         try {
             tree.getRoot().getChildren().clear();
             var node = AppSettings.getMapper().readTree(jsonObject);
