@@ -83,7 +83,7 @@ public class TableViewController {
             {
                 // table.refresh();  // force colors re-evaluation
                 if (newVal != null) {
-                    this.getString(newVal, null, StringType.FULL).ifPresent(treeController::setObject);
+                    this.getNode(newVal, null).ifPresent(treeController::setObject);
                 }
             }
         });
@@ -193,6 +193,7 @@ public class TableViewController {
         allEntries.add( jsonObject );
 
         // load top-level properties
+        // TODO: delay loading of columns?
 
         JsonNode node = this.getNode(jsonObject, null).orElse(null);
         if (node == null)

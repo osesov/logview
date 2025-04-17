@@ -1,18 +1,60 @@
 package app;
 
+import com.fasterxml.jackson.databind.JsonNode;
+
 import javafx.geometry.Insets;
-import javafx.scene.control.*;
+import javafx.scene.control.IndexRange;
+import javafx.scene.control.TextField;
+import javafx.scene.control.TreeCell;
+import javafx.scene.control.TreeItem;
+import javafx.scene.control.TreeView;
+import javafx.scene.input.Clipboard;
+import javafx.scene.input.ClipboardContent;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.util.Pair;
-
-import com.fasterxml.jackson.databind.JsonNode;
 
 public class TreeViewController {
     private TreeView<String> tree = new TreeView<>(new TreeItem<>("Root"));
 
     public TreeViewController() {
-        this.tree.setShowRoot(false);
+        tree.setShowRoot(false);
+
+        tree.setCellFactory( tv -> new TreeCell<>() {
+            private final TextField textField = new TextField();
+            {
+                textField.setEditable(false);
+                textField.setFocusTraversable(false);
+                textField.setStyle("-fx-background-color: transparent; -fx-border-color: transparent;");
+
+                // Copy by Right Click
+                textField.setOnContextMenuRequested(e -> {
+                    Clipboard clipboard = Clipboard.getSystemClipboard();
+                    ClipboardContent content = new ClipboardContent();
+                    IndexRange selection = textField.getSelection();
+                    String text = selection.getLength() == 0 ? textField.getText() : textField.getSelectedText();
+                    content.putString(text);
+                    clipboard.setContent(content);
+
+                    Toast.show("Copied to clipboard: " + text, 2000);
+                });
+
+            }
+
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setGraphic(null);
+                } else {
+                    textField.setText(item);
+                    setText(null);
+                    setGraphic(textField);
+                }
+            }
+
+        });
     }
 
     public VBox getView() {
@@ -22,17 +64,16 @@ public class TreeViewController {
         return box;
     }
 
-    public void setObject(String jsonObject) {
+    public void setObject(JsonNode jsonObject) {
         try {
             tree.getRoot().getChildren().clear();
-            var node = AppSettings.getMapper().readTree(jsonObject);
 
-            if (node == null) {
+            if (jsonObject == null) {
                 System.err.println("Invalid JSON: " + jsonObject);
                 return;
             }
 
-            this.addJsonToTree(node, tree.getRoot());
+            this.addJsonToTree(jsonObject, tree.getRoot());
         }
         catch (Exception e) {
             System.err.println("Invalid JSON: " + e.getMessage());

@@ -36,6 +36,7 @@ public class MainApp extends Application
 
     @Override
     public void start(Stage primaryStage) {
+        Toast.setOwnerStage(primaryStage);
         BorderPane root = new BorderPane();
 
         Node statusContainer = this.buildStatusBar();
