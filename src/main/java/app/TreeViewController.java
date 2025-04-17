@@ -1,5 +1,7 @@
 package app;
 
+import java.util.Map;
+
 import com.fasterxml.jackson.databind.JsonNode;
 
 import javafx.geometry.Insets;
@@ -15,7 +17,10 @@ import javafx.scene.layout.VBox;
 import javafx.util.Pair;
 
 public class TreeViewController {
-    private TreeView<String> tree = new TreeView<>(new TreeItem<>("Root"));
+
+    private static final record TreeElem (String nodeName, JsonNode node, String title) {}
+
+    private TreeView<TreeElem> tree = new TreeView<>(new TreeItem<TreeElem>(null));
 
     public TreeViewController() {
         tree.setShowRoot(false);
@@ -32,9 +37,14 @@ public class TreeViewController {
                     Clipboard clipboard = Clipboard.getSystemClipboard();
                     ClipboardContent content = new ClipboardContent();
                     IndexRange selection = textField.getSelection();
-                    String text = selection.getLength() == 0 ? textField.getText() : textField.getSelectedText();
+                    TreeElem item = getItem();
+                    String text = selection.getLength() == 0 ? item.node.toPrettyString() : textField.getSelectedText();
                     content.putString(text);
                     clipboard.setContent(content);
+
+                    if (text.length() > 200) {
+                        text = text.substring(0, 200) + "...";
+                    }
 
                     Toast.show("Copied to clipboard: " + text, 2000);
                 });
@@ -42,13 +52,13 @@ public class TreeViewController {
             }
 
             @Override
-            protected void updateItem(String item, boolean empty) {
+            protected void updateItem(TreeElem item, boolean empty) {
                 super.updateItem(item, empty);
                 if (empty || item == null) {
                     setText(null);
                     setGraphic(null);
                 } else {
-                    textField.setText(item);
+                    textField.setText(item.title);
                     setText(null);
                     setGraphic(textField);
                 }
@@ -117,28 +127,32 @@ public class TreeViewController {
         return new Pair<>(title, truncated);
     }
 
-    private void addJsonToTree(JsonNode node, TreeItem<String> parent) {
+    private void addJsonToTree(JsonNode node, TreeItem<TreeElem> parent) {
         if (node.isObject()) {
             node.fields().forEachRemaining(entry -> {
-                TreeItem<String> child;
+                TreeItem<TreeElem> child;
                 var result = this.getTitle(entry.getValue());
                 var title = result.getKey();
                 var truncated = result.getValue();
 
+                var elem = new TreeElem(entry.getKey(), entry.getValue(), entry.getKey() + ": " + title);
+
                 if (entry.getValue().isObject()) {
-                    child = new TreeItem<>(entry.getKey() + ": " + title);
+                    child = new TreeItem<>(elem);
                     addJsonToTree(entry.getValue(), child);
                 } else if (entry.getValue().isArray()) {
-                    child = new TreeItem<>(entry.getKey() + ": " + title);
+                    child = new TreeItem<>(elem);
                     addJsonToTree(entry.getValue(), child);
                 } else {
                     if (truncated) { // truncated
-                        child = new TreeItem<>(entry.getKey() + ": " + title);
-                        var rest = new TreeItem<>(entry.getValue().asText());
+                        child = new TreeItem<>(elem);
+                        var childElem = new TreeElem(entry.getKey(), entry.getValue(), entry.getValue().asText());
+
+                        var rest = new TreeItem<>(childElem);
                         child.getChildren().add(rest);
                     }
                     else {
-                        child = new TreeItem<>(entry.getKey() + ": " + title);
+                        child = new TreeItem<>(elem);
                     }
                 }
                 parent.getChildren().add(child);
@@ -146,22 +160,25 @@ public class TreeViewController {
         } else if (node.isArray()) {
             int index = 0;
             for (var element : node) {
-                TreeItem<String> child;
+                TreeItem<TreeElem> child;
                 var result = this.getTitle(element);
                 var title = result.getKey();
                 var truncated = result.getValue();
+                var elem = new TreeElem(null, element, "[" + index + "]: " + title);
 
                 if (element.isObject() || element.isArray()) {
-                    child = new TreeItem<>("[" + index + "]: " + title);
+                    child = new TreeItem<>(elem);
                     addJsonToTree(element, child);
                 } else {
                     if (truncated) {
-                        child = new TreeItem<>("[" + index + "]: " + title);
-                        var rest = new TreeItem<>(element.asText());
+                        child = new TreeItem<>(elem);
+                        var childElem = new TreeElem(null, element, element.asText());
+
+                        var rest = new TreeItem<>(childElem);
                         child.getChildren().add(rest);
                     }
                     else {
-                        child = new TreeItem<>("[" + index + "]: " + title);
+                        child = new TreeItem<>(elem);
                     }
                 }
                 parent.getChildren().add(child);
