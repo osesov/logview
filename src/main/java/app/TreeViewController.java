@@ -5,6 +5,8 @@ import java.util.Map;
 import com.fasterxml.jackson.databind.JsonNode;
 
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.control.IndexRange;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TreeCell;
@@ -12,6 +14,8 @@ import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeView;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
+import javafx.scene.input.MouseButton;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.util.Pair;
@@ -27,10 +31,19 @@ public class TreeViewController {
 
         tree.setCellFactory( tv -> new TreeCell<>() {
             private final TextField textField = new TextField();
+
             {
                 textField.setEditable(false);
                 textField.setFocusTraversable(false);
-                textField.setStyle("-fx-background-color: transparent; -fx-border-color: transparent;");
+                textField.setStyle("""
+                    -fx-background-color: transparent;
+                    -fx-border-color: transparent;
+                    -fx-padding: 0;
+                    -fx-font-size: 12px;
+                    """);
+                textField.setVisible(true);
+                textField.setOpacity(1.0);
+                textField.setMaxWidth(Double.MAX_VALUE);
 
                 // Copy by Right Click
                 textField.setOnContextMenuRequested(e -> {
@@ -49,6 +62,25 @@ public class TreeViewController {
                     Toast.show("Copied to clipboard: " + text, 2000);
                 });
 
+                textField.setOnMouseClicked(event -> {
+                    if (event.getClickCount() == 2 && event.getButton() == MouseButton.PRIMARY) {
+                        TreeItem<TreeElem> item = getTreeItem();
+                        if (item != null && !item.isLeaf()) {
+                            item.setExpanded(!item.isExpanded());
+                            event.consume(); // prevent bubbling if needed
+                        }
+                    }
+                });
+
+                textField.setOnKeyPressed(event -> {
+                    if (event.getCode().isArrowKey()) {
+                        event.consume(); // prevent bubbling if needed
+                    }
+                });
+
+                textField.setAlignment(Pos.CENTER_LEFT);
+                textField.setMaxWidth(Double.MAX_VALUE);
+                HBox.setHgrow(textField, Priority.ALWAYS);
             }
 
             @Override
@@ -63,7 +95,6 @@ public class TreeViewController {
                     setGraphic(textField);
                 }
             }
-
         });
     }
 
