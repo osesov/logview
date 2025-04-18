@@ -1,13 +1,14 @@
 package app;
 
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
+import javafx.beans.property.SimpleStringProperty;
+import javafx.beans.property.StringProperty;
 import javafx.geometry.Insets;
-import javafx.geometry.Pos;
-import javafx.scene.Node;
-import javafx.scene.control.IndexRange;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TreeCell;
 import javafx.scene.control.TreeItem;
@@ -17,23 +18,31 @@ import javafx.scene.input.ClipboardContent;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.text.Text;
+import javafx.scene.text.TextFlow;
 import javafx.util.Pair;
 
 public class TreeViewController {
 
-    private static final record TreeElem (String nodeName, JsonNode node, String title) {}
+    public static final record TreeElem (String nodeName, JsonNode node, String title) {}
 
     private TreeView<TreeElem> tree = new TreeView<>(new TreeItem<TreeElem>(null));
+    private StringProperty currentSearch = new SimpleStringProperty();
+    private List<TreeItem<TreeElem>> matches = new ArrayList<>();
+    private int matchIndex = 0;
 
     public TreeViewController() {
         tree.setShowRoot(false);
+
+        // tree.setCellFactory( tv -> new HighlightingTreeCell(currentSearch));
 
         tree.setCellFactory( tv -> new TreeCell<>() {
             private final TextField textField = new TextField();
 
             {
-                textField.setEditable(false);
+                // textField.setEditable(false);
                 textField.setFocusTraversable(false);
                 textField.setStyle("""
                     -fx-background-color: transparent;
@@ -49,9 +58,19 @@ public class TreeViewController {
                 textField.setOnContextMenuRequested(e -> {
                     Clipboard clipboard = Clipboard.getSystemClipboard();
                     ClipboardContent content = new ClipboardContent();
-                    IndexRange selection = textField.getSelection();
                     TreeElem item = getItem();
-                    String text = selection.getLength() == 0 ? item.node.toPrettyString() : textField.getSelectedText();
+
+                    String text = Optional.ofNullable(textField.getSelection())
+                    .filter(it -> it.getLength() > 0)
+                    .map(it -> textField.getSelectedText())
+                    .orElseGet(() -> {
+                        return item.node.toPrettyString();
+                    });
+
+                    if (text == null || text.isEmpty()) {
+                        return;
+                    }
+
                     content.putString(text);
                     clipboard.setContent(content);
 
@@ -78,7 +97,7 @@ public class TreeViewController {
                     }
                 });
 
-                textField.setAlignment(Pos.CENTER_LEFT);
+                // textField.setAlignment(Pos.CENTER_LEFT);
                 textField.setMaxWidth(Double.MAX_VALUE);
                 HBox.setHgrow(textField, Priority.ALWAYS);
             }
@@ -90,19 +109,28 @@ public class TreeViewController {
                     setText(null);
                     setGraphic(null);
                 } else {
-                    textField.setText(item.title);
                     setText(null);
                     setGraphic(textField);
+                    textField.setText(item.title);
+                    // textField.setItem(item.title);
+                    // setGraphic(highlightMatch(item.title, "file"));
                 }
             }
         });
     }
 
-    public VBox getView() {
-        VBox box = new VBox(tree); // or tree
+    private StackPane view;
+
+    public StackPane getView() {
+        if (view != null)
+            return view;
+
+        view = new StackPane();
+        VBox box = new VBox(tree);
         VBox.setVgrow(tree, Priority.ALWAYS);  // make TreeView grow inside VBox
         box.setPadding(new Insets(5));
-        return box;
+        view.getChildren().add(box);
+        return view;
     }
 
     public void setObject(JsonNode jsonObject) {
@@ -217,4 +245,134 @@ public class TreeViewController {
             }
         }
     }
+
+    public void onSearch(String searchString)
+    {
+        String query = searchString.toLowerCase();
+        TreeItem<TreeElem> root = tree.getRoot();
+
+        if (query == null || query.isEmpty()) {
+            // collapseAll(root, true);
+            currentSearch.set("");
+            matches.clear();
+            matchIndex = 0;
+            return;
+        }
+
+        if (query.equals(currentSearch.get())) {
+            // next match
+            matchIndex = (matchIndex + 1) % matches.size(); // loop around
+            TreeItem<TreeElem> next = matches.get(matchIndex);
+
+            expandPathTo(next);
+            tree.getSelectionModel().select(next);
+            tree.scrollTo(tree.getRow(next));
+
+            return;
+        }
+
+        // collapseAll(root, true);
+        matches = new ArrayList<>();
+        findMatches(root, query.toLowerCase(), matches);
+
+        for (TreeItem<TreeElem> match : matches) {
+            expandPathTo(match);
+        }
+
+        if (!matches.isEmpty()) {
+            tree.getSelectionModel().select(matches.get(0));
+            tree.scrollTo(tree.getRow(matches.get(0)));
+        }
+
+        currentSearch.set(query);
+        matchIndex = 0;
+    }
+
+    private void collapseAll(TreeItem<?> item, boolean isRoot) {
+        if (!isRoot)
+            item.setExpanded(false);
+        for (TreeItem<?> child : item.getChildren()) {
+            System.err.println(child.getValue());
+            collapseAll(child, false);
+        }
+    }
+
+    private void expandPathTo(TreeItem<?> item) {
+        TreeItem<?> parent = item.getParent();
+        while (parent != null) {
+            parent.setExpanded(true);
+            parent = parent.getParent();
+        }
+    }
+
+    private void findMatches(TreeItem<TreeElem> item, String query, List<TreeItem<TreeElem>> matches) {
+        TreeElem value = item.getValue();
+        if (value != null) {
+            String s = value.node.toString();
+
+            if (s.toLowerCase().contains(query)) {
+                matches.add(item);
+            }
+        }
+
+        for (TreeItem<TreeElem> child : item.getChildren()) {
+            findMatches(child, query, matches);
+        }
+    }
+
+    private TextFlow highlightMatch(String text, String query) {
+        TextFlow flow = new TextFlow();
+
+        if (query == null || query.isEmpty()) {
+            flow.getChildren().add(new Text(text));
+            return flow;
+        }
+
+        String lowerText = text.toLowerCase();
+        String lowerQuery = query.toLowerCase();
+
+        int matchIndex = lowerText.indexOf(lowerQuery);
+        if (matchIndex < 0) {
+            flow.getChildren().add(new Text(text));
+            return flow;
+        }
+
+        Text before = new Text(text.substring(0, matchIndex));
+        Text match = new Text(text.substring(matchIndex, matchIndex + query.length()));
+        Text after = new Text(text.substring(matchIndex + query.length()));
+
+        match.setStyle("-fx-fill: red; -fx-font-weight: bold;");
+
+        flow.getChildren().addAll(before, match, after);
+        return flow;
+    }
+
+    public void searchNext() {
+        if (matches.isEmpty()) {
+            return;
+        }
+
+        // next match
+        matchIndex = (matchIndex + 1) % matches.size(); // loop around
+        TreeItem<TreeElem> next = matches.get(matchIndex);
+
+        expandPathTo(next);
+        tree.getSelectionModel().select(next);
+        tree.scrollTo(tree.getRow(next));
+    }
+
+    public void searchPrevious() {
+        if (matches.isEmpty()) {
+            return;
+        }
+
+        // previous match
+        matchIndex = (matchIndex - 1 + matches.size()) % matches.size(); // loop around
+        TreeItem<TreeElem> next = matches.get(matchIndex);
+
+        expandPathTo(next);
+        tree.getSelectionModel().select(next);
+        tree.scrollTo(tree.getRow(next));
+    }
+
 }

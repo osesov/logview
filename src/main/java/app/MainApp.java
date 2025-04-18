@@ -20,6 +20,7 @@ import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.StackPane;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 
@@ -37,7 +38,12 @@ public class MainApp extends Application
     @Override
     public void start(Stage primaryStage) {
         Toast.setOwnerStage(primaryStage);
+        StackPane rootPane = new StackPane();
         BorderPane root = new BorderPane();
+        rootPane.getChildren().add(root);
+
+        SearchPopup.start(rootPane);
+
 
         Node statusContainer = this.buildStatusBar();
         MiddleArea middleArea = this.buildMiddleArea();
@@ -53,7 +59,7 @@ public class MainApp extends Application
         // load app settings
         double[] bounds = AppSettings.loadWindowBounds(1200, 800);
 
-        Scene scene = new Scene(root, 1200, 800);
+        Scene scene = new Scene(rootPane, 1200, 800);
 
         if (!Double.isNaN(bounds[0])) {
             primaryStage.setX(bounds[0]);
@@ -68,6 +74,15 @@ public class MainApp extends Application
                 event.consume();
                 searchField.requestFocus();
                 searchField.selectAll();
+            }
+            else if (event.getCode() == KeyCode.F && event.isControlDown() && !event.isAltDown()) {
+                SearchPopup.show(treeViewController.getView(), treeViewController::onSearch);
+            } else if (event.getCode() == KeyCode.F3 && !event.isShiftDown() && !event.isControlDown() && !event.isAltDown()) {
+                treeViewController.searchNext();
+            } else if (event.getCode() == KeyCode.F3 && event.isShiftDown() && !event.isControlDown() && !event.isAltDown()) {
+                treeViewController.searchPrevious();
+            } else if (event.getCode() == KeyCode.ESCAPE) {
+                SearchPopup.hide();
             }
         });
 
