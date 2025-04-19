@@ -140,12 +140,11 @@ public class TreeViewController {
                         textArea.setText(item.title);
                         setGraphic(textArea);
 
-                        var lines = item.title.split("\n").length;
+                        int lineCount = (int) item.title.chars().filter(ch -> ch == '\n').count() + 1;
+                        if (lineCount > 20)
+                            lineCount = 20;
 
-                        if (lines > 20)
-                            lines = 20;
-
-                        textArea.setPrefRowCount(lines);
+                        textArea.setPrefRowCount(lineCount);
                     } else {
                         textField.setText(item.title);
                         setGraphic(textField);
