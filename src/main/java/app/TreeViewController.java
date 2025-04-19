@@ -11,6 +11,7 @@ import javafx.beans.property.StringProperty;
 import javafx.geometry.Insets;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
+import javafx.scene.control.TextInputControl;
 import javafx.scene.control.TreeCell;
 import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeView;
@@ -135,6 +136,9 @@ public class TreeViewController {
                     setText(null);
                     setGraphic(null);
                 } else {
+
+                    TextInputControl textControl;
+
                     setText(null);
                     if (item.title.contains("\n")) {
                         textArea.setText(item.title);
@@ -145,9 +149,23 @@ public class TreeViewController {
                             lineCount = 20;
 
                         textArea.setPrefRowCount(lineCount);
+                        textControl = textArea;
                     } else {
                         textField.setText(item.title);
                         setGraphic(textField);
+                        textControl = textField;
+                    }
+
+                    String query = currentSearch.get();
+                    if (query != null && !query.isEmpty()) {
+                        int index = item.node.toString().toLowerCase().indexOf(query.toLowerCase());
+                        if (index >= 0) {
+                            textControl.selectRange(index, index + query.length());
+                        } else {
+                            textControl.deselect();
+                        }
+                    } else {
+                        textControl.deselect();
                     }
 
                     // textField.setItem(item.title);
