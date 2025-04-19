@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
 import javafx.geometry.Insets;
+import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TreeCell;
 import javafx.scene.control.TreeItem;
@@ -18,6 +19,7 @@ import javafx.scene.input.ClipboardContent;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.text.Text;
@@ -35,11 +37,13 @@ public class TreeViewController {
 
     public TreeViewController() {
         tree.setShowRoot(false);
+        tree.setFixedCellSize(-1); // Allow variable row heights
 
         // tree.setCellFactory( tv -> new HighlightingTreeCell(currentSearch));
 
         tree.setCellFactory( tv -> new TreeCell<>() {
             private final TextField textField = new TextField();
+            private final TextArea textArea = new TextArea();
 
             {
                 // textField.setEditable(false);
@@ -53,6 +57,28 @@ public class TreeViewController {
                 textField.setVisible(true);
                 textField.setOpacity(1.0);
                 textField.setMaxWidth(Double.MAX_VALUE);
+
+
+                // TextArea
+                textArea.setEditable(false);
+                textArea.setWrapText(true);
+                textArea.setFocusTraversable(false);
+                textArea.setStyle("""
+                    -fx-background-color: transparent;
+                    -fx-border-color: transparent;
+                    // -fx-padding: 0;
+                    -fx-font-size: 12px;
+
+                    -fx-border-color: #888;
+                    -fx-border-width: 1;
+                    -fx-border-radius: 4;
+                    -fx-padding: 4;
+                """);
+                // textArea.setMaxHeight(Double.MAX_VALUE); // allow growth
+                textArea.setMaxWidth(Double.MAX_VALUE);
+                textArea.setPrefRowCount(1); // for initial size
+                textArea.setMinHeight(Region.USE_PREF_SIZE);
+                textArea.setMaxHeight(Region.USE_COMPUTED_SIZE);
 
                 // Copy by Right Click
                 textField.setOnContextMenuRequested(e -> {
@@ -110,8 +136,21 @@ public class TreeViewController {
                     setGraphic(null);
                 } else {
                     setText(null);
-                    setGraphic(textField);
-                    textField.setText(item.title);
+                    if (item.title.contains("\n")) {
+                        textArea.setText(item.title);
+                        setGraphic(textArea);
+
+                        var lines = item.title.split("\n").length;
+
+                        if (lines > 20)
+                            lines = 20;
+
+                        textArea.setPrefRowCount(lines);
+                    } else {
+                        textField.setText(item.title);
+                        setGraphic(textField);
+                    }
+
                     // textField.setItem(item.title);
                     // setGraphic(highlightMatch(item.title, "file"));
                 }
