@@ -14,6 +14,11 @@ public class TraceLogger {
     private static final List<TraceEvent> events = Collections.synchronizedList(new ArrayList<>());
     private static final long startTime = System.nanoTime();
     private static final int pid = getProcessId();
+    private static boolean enabled = false;
+
+    public static void setEnabled(boolean enabled) {
+        TraceLogger.enabled = enabled;
+    }
 
     private static long nowMicro() {
         return (System.nanoTime() - startTime) / 1000;
@@ -24,28 +29,34 @@ public class TraceLogger {
         return Integer.parseInt(jvmName.split("@")[0]);
     }
 
+    public static void addEvent(TraceEvent event) {
+        if (enabled) {
+            events.add(event);
+        }
+    }
+
     public static void instant(String name, String category, Map<String, String> args) {
         TraceEvent e = new TraceEvent(name, "i", nowMicro(), pid, (int) Thread.currentThread().getId(), args);
         e.cat = category;
-        events.add(e);
+        addEvent(e);
     }
 
     public static void begin(String name, Map<String, String> args) {
-        events.add(new TraceEvent(name, "B", nowMicro(), pid, (int) Thread.currentThread().getId(), args));
+        addEvent(new TraceEvent(name, "B", nowMicro(), pid, (int) Thread.currentThread().getId(), args));
     }
 
     public static void end(String name, Map<String, String> args) {
-        events.add(new TraceEvent(name, "E", nowMicro(), pid, (int) Thread.currentThread().getId(), args));
+        addEvent(new TraceEvent(name, "E", nowMicro(), pid, (int) Thread.currentThread().getId(), args));
     }
 
     public static void complete(String name, long durationMicros, Map<String, String> args) {
-        events.add(new TraceEvent(name, "X", nowMicro(), pid, (int) Thread.currentThread().getId(), args, durationMicros));
+        addEvent(new TraceEvent(name, "X", nowMicro(), pid, (int) Thread.currentThread().getId(), args, durationMicros));
     }
 
     public static void metadata(String name, String value) {
         Map<String, String> args = new HashMap<>();
         args.put("name", value);
-        events.add(new TraceEvent(name, "M", nowMicro(), pid, (int) Thread.currentThread().getId(), args));
+        addEvent(new TraceEvent(name, "M", nowMicro(), pid, (int) Thread.currentThread().getId(), args));
     }
 
     public static <T> T trace(String name, Supplier<T> action) {
@@ -80,6 +91,9 @@ public class TraceLogger {
 
     public static void save(String filename)
     {
+        if (!enabled) {
+            return;
+        }
         ObjectMapper mapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
         ObjectWriter writer = mapper.writer();
 

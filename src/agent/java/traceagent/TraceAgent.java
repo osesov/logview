@@ -7,6 +7,7 @@ import java.lang.instrument.Instrumentation;
 import java.security.ProtectionDomain;
 
 import app.debug.Trace;
+import app.debug.TraceLogger;
 import net.bytebuddy.agent.builder.AgentBuilder;
 import net.bytebuddy.asm.Advice;
 import net.bytebuddy.description.type.TypeDescription;
@@ -15,6 +16,8 @@ import net.bytebuddy.utility.JavaModule;
 
 public class TraceAgent {
     public static void premain(String agentArgs, Instrumentation inst) {
+        System.out.println("Instrumenting code for tracing");
+
         new AgentBuilder.Default()
             .type(any())
             .transform((DynamicType.Builder<?> builder, TypeDescription type, ClassLoader classLoader, JavaModule module, ProtectionDomain protectionDomain) -> builder
@@ -22,5 +25,7 @@ public class TraceAgent {
                 .intercept(Advice.to(TraceAdvice.class))
             )
             .installOn(inst);
+
+        TraceLogger.setEnabled(true);
     }
 }
