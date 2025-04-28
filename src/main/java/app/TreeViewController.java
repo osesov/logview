@@ -69,7 +69,8 @@ public class TreeViewController {
                     -fx-background-color: transparent;
                     -fx-border-color: transparent;
                     -fx-padding: 0;
-                    -fx-font-size: 12px;
+                    -fx-font-size: 14px;
+                    // -fx-font-family: Monospaced;
                     """);
                 textField.setVisible(true);
                 textField.setOpacity(1.0);
@@ -84,7 +85,8 @@ public class TreeViewController {
                     -fx-background-color: transparent;
                     -fx-border-color: transparent;
                     // -fx-padding: 0;
-                    -fx-font-size: 12px;
+                    -fx-font-size: 14px;
+                    // -fx-font-family: Monospaced;
 
                     -fx-border-color: #888;
                     -fx-border-width: 1;
@@ -144,13 +146,13 @@ public class TreeViewController {
                 textField.setMaxWidth(Double.MAX_VALUE);
                 HBox.setHgrow(textField, Priority.ALWAYS);
 
-                prefixText.setFont(Font.font("Monospaced", -1));
                 prefixText.setStyle("""
-                    -fx-font-size: 12px;
+                    -fx-font-family: Monospaced;
+                    -fx-font-size: 14px;
                     -fx-font-weight: bold;
-                    """);
-
-                prefixText.setFill(Color.GRAY);
+                    -fx-fill:rgb(179, 175, 205);
+                    """
+                );
             }
 
             @Override
@@ -175,11 +177,11 @@ public class TreeViewController {
                     if (hasElements && hasByteSize) {
                         // title = String.format("(%d elements, %d bytes) %s", item.elements, item.byteSize, title);
                         tooltip = String.format("(%d elements, %d bytes)", item.elements, item.byteSize);
-                        prefix = String.format("[%s/%8s]", item.elements, humanReadableSize(item.byteSize));
+                        prefix = String.format("[%2s:%8s]", item.elements, humanReadableSize(item.byteSize));
                     } else if (hasElements) {
                         // title = String.format("(%d elements) %s", item.elements, item.byteSize, title);
                         tooltip = String.format("(%d elements)", item.elements, item.byteSize);
-                        prefix = String.format("[%s]", item.elements);
+                        prefix = String.format("[%2s]", item.elements);
                     } else if (hasByteSize) {
                         // title = String.format("(%d bytes) %s", item.byteSize, title);
                         tooltip = String.format("(%d bytes)", item.byteSize);
@@ -219,7 +221,6 @@ public class TreeViewController {
                     }
 
                     prefixText.setText(prefix);
-
                     String query = currentSearch.get();
                     if (query != null && !query.isEmpty()) {
                         int index = item.node.toString().toLowerCase().indexOf(query.toLowerCase());
