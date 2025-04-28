@@ -15,6 +15,8 @@ import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
+import javafx.scene.control.ToggleButton;
+import javafx.scene.control.ToolBar;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.BorderPane;
@@ -188,12 +190,40 @@ public class MainApp extends Application
         HBox.setHgrow(searchField, Priority.ALWAYS);
         searchField.setMaxWidth(Double.MAX_VALUE);
 
+        // some control
+        ToggleButton toggleElementsButton = new ToggleButton("#");
+        ToggleButton toggleSizeButton = new ToggleButton("Size");
+
+        toggleElementsButton.selectedProperty().addListener((obs, oldVal, newVal) -> {
+            treeViewController.setShowElements(newVal);
+        });
+
+        toggleSizeButton.selectedProperty().addListener((obs, oldVal, newVal) -> {
+            treeViewController.setShowByteSize(newVal);
+        });
+
         // wrap it finally
         HBox topBarContainer = new HBox(toggleExplorerTab, goToField, searchField);
         topBarContainer.setSpacing(10);
         topBarContainer.setPadding(new Insets(5));
 
-        return topBarContainer;
+        ToolBar toolBar = new ToolBar();
+        toolBar.getItems().addAll(
+            toggleExplorerTab,
+            toggleElementsButton,
+            toggleSizeButton,
+            goToField,
+            searchField
+        );
+        toolBar.setStyle("-fx-background-color: #eeeeee; -fx-border-color: #cccccc;");
+        toolBar.setPadding(new Insets(5));
+        toolBar.setMinHeight(30);
+        toolBar.setMaxHeight(30);
+        toolBar.setPrefHeight(30);
+        toolBar.setFocusTraversable(false);
+        return toolBar;
+
+        // return topBarContainer;
     }
 
     private Node buildStatusBar()

@@ -6,12 +6,16 @@ import java.util.Optional;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
+import javafx.beans.property.BooleanProperty;
+import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
 import javafx.geometry.Insets;
+import javafx.scene.Node;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TextInputControl;
+import javafx.scene.control.Tooltip;
 import javafx.scene.control.TreeCell;
 import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeView;
@@ -23,16 +27,26 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
+import javafx.scene.text.Font;
 import javafx.scene.text.Text;
 import javafx.scene.text.TextFlow;
-import javafx.util.Pair;
+import javafx.util.Duration;
 
 public class TreeViewController {
 
-    public static final record TreeElem (String nodeName, JsonNode node, String title) {}
+    public static final record TreeElem (
+        String nodeName,
+        JsonNode node,
+        String title,
+        Integer elements,
+        Integer byteSize
+    ) {}
 
     private TreeView<TreeElem> tree = new TreeView<>(new TreeItem<TreeElem>(null));
     private StringProperty currentSearch = new SimpleStringProperty();
+    private BooleanProperty showElements = new SimpleBooleanProperty(false);
+    private BooleanProperty showByteSize = new SimpleBooleanProperty(false);
     private List<TreeItem<TreeElem>> matches = new ArrayList<>();
     private int matchIndex = 0;
 
@@ -45,6 +59,8 @@ public class TreeViewController {
         tree.setCellFactory( tv -> new TreeCell<>() {
             private final TextField textField = new TextField();
             private final TextArea textArea = new TextArea();
+            private final Text prefixText = new Text("[P] ");
+            private final HBox hbox = new HBox(5);
 
             {
                 // textField.setEditable(false);
@@ -127,6 +143,14 @@ public class TreeViewController {
                 // textField.setAlignment(Pos.CENTER_LEFT);
                 textField.setMaxWidth(Double.MAX_VALUE);
                 HBox.setHgrow(textField, Priority.ALWAYS);
+
+                prefixText.setFont(Font.font("Monospaced", -1));
+                prefixText.setStyle("""
+                    -fx-font-size: 12px;
+                    -fx-font-weight: bold;
+                    """);
+
+                prefixText.setFill(Color.GRAY);
             }
 
             @Override
@@ -135,26 +159,66 @@ public class TreeViewController {
                 if (empty || item == null) {
                     setText(null);
                     setGraphic(null);
+                    setTooltip(null);
                 } else {
 
                     TextInputControl textControl;
+                    Node disclosureNode = getDisclosureNode();
+
+                    String title = item.title;
+                    String tooltip;
+                    String prefix = null;
+
+                    boolean hasElements = item.elements != null && item.elements != null && showElements.get();
+                    boolean hasByteSize = item.byteSize != null && item.byteSize >= 0 && showByteSize.get();
+
+                    if (hasElements && hasByteSize) {
+                        // title = String.format("(%d elements, %d bytes) %s", item.elements, item.byteSize, title);
+                        tooltip = String.format("(%d elements, %d bytes)", item.elements, item.byteSize);
+                        prefix = String.format("[%s/%8s]", item.elements, humanReadableSize(item.byteSize));
+                    } else if (hasElements) {
+                        // title = String.format("(%d elements) %s", item.elements, item.byteSize, title);
+                        tooltip = String.format("(%d elements)", item.elements, item.byteSize);
+                        prefix = String.format("[%s]", item.elements);
+                    } else if (hasByteSize) {
+                        // title = String.format("(%d bytes) %s", item.byteSize, title);
+                        tooltip = String.format("(%d bytes)", item.byteSize);
+                        prefix = String.format("[%8s]", humanReadableSize(item.byteSize));
+                    } else {
+                        tooltip = null;
+                        prefix = null;
+                    }
 
                     setText(null);
-                    if (item.title.contains("\n")) {
-                        textArea.setText(item.title);
-                        setGraphic(textArea);
+                    if (title.contains("\n")) {
+                        textArea.setText(title);
 
-                        int lineCount = (int) item.title.chars().filter(ch -> ch == '\n').count() + 1;
+                        hbox.getChildren().clear();
+                        hbox.getChildren().addAll(prefixText, textArea);
+                        setGraphic(hbox);
+                        // setGraphic(textArea);
+
+                        int lineCount = (int) title.chars().filter(ch -> ch == '\n').count() + 1;
                         if (lineCount > 20)
                             lineCount = 20;
 
                         textArea.setPrefRowCount(lineCount);
                         textControl = textArea;
                     } else {
-                        textField.setText(item.title);
-                        setGraphic(textField);
+                        textField.setText(title);
+                        // setGraphic(textField);
                         textControl = textField;
+
+                        hbox.getChildren().clear();
+                        hbox.getChildren().addAll(prefixText, textField);
+                        setGraphic(hbox);
                     }
+
+                    if (prefix == null || prefix.isEmpty()) {
+                        prefix = "";
+                    }
+
+                    prefixText.setText(prefix);
 
                     String query = currentSearch.get();
                     if (query != null && !query.isEmpty()) {
@@ -166,6 +230,18 @@ public class TreeViewController {
                         }
                     } else {
                         textControl.deselect();
+                    }
+
+                    if (tooltip == null || tooltip.isEmpty()) {
+                        setTooltip(null);
+                    } else {
+                        Tooltip tooltipNode = new Tooltip(tooltip);
+
+                        tooltipNode.setShowDelay(Duration.millis(100));
+                        tooltipNode.setShowDuration(Duration.seconds(5));
+                        tooltipNode.setHideDelay(Duration.seconds(1));
+
+                        // setTooltip(tooltipNode);
                     }
 
                     // textField.setItem(item.title);
@@ -207,9 +283,18 @@ public class TreeViewController {
         }
     }
 
-    private Pair<String, Boolean> getTitle(JsonNode node) {
+    private static record Title(
+        String title,
+        boolean truncated,
+        Integer elements,
+        Integer byteSize
+    ) {}
+
+    private Title getTitle(JsonNode node) {
         String title;
         boolean truncated = false;
+        Integer elements = null;
+        Integer byteSize = null;
 
         if (node.isObject() || node.isArray()) {
             String s = node.toString();
@@ -223,6 +308,9 @@ public class TreeViewController {
             } else {
                 title = s;
             }
+
+            elements = node.size();
+            byteSize = s.length();
         } else {
             var text = node.asText();
             var newLine = text.indexOf('\n');
@@ -237,20 +325,30 @@ public class TreeViewController {
             } else {
                 title = text;
             }
+
+            byteSize = text.length();
         }
 
-        return new Pair<>(title, truncated);
+        return new Title(title, truncated, elements, byteSize);
     }
 
     private void addJsonToTree(JsonNode node, TreeItem<TreeElem> parent) {
         if (node.isObject()) {
             node.fields().forEachRemaining(entry -> {
                 TreeItem<TreeElem> child;
-                var result = this.getTitle(entry.getValue());
-                var title = result.getKey();
-                var truncated = result.getValue();
+                Title result = this.getTitle(entry.getValue());
+                String title = result.title();
+                Boolean truncated = result.truncated();
+                Integer elements = result.elements();
+                Integer byteSize = result.byteSize();
 
-                var elem = new TreeElem(entry.getKey(), entry.getValue(), entry.getKey() + ": " + title);
+                TreeElem elem = new TreeElem(
+                    entry.getKey(),
+                    entry.getValue(),
+                    entry.getKey() + ": " + title,
+                    elements,
+                    byteSize
+                    );
 
                 if (entry.getValue().isObject()) {
                     child = new TreeItem<>(elem);
@@ -261,7 +359,7 @@ public class TreeViewController {
                 } else {
                     if (truncated) { // truncated
                         child = new TreeItem<>(elem);
-                        var childElem = new TreeElem(entry.getKey(), entry.getValue(), entry.getValue().asText());
+                        var childElem = new TreeElem(entry.getKey(), entry.getValue(), entry.getValue().asText(), elements, byteSize);
 
                         var rest = new TreeItem<>(childElem);
                         child.getChildren().add(rest);
@@ -277,9 +375,11 @@ public class TreeViewController {
             for (var element : node) {
                 TreeItem<TreeElem> child;
                 var result = this.getTitle(element);
-                var title = result.getKey();
-                var truncated = result.getValue();
-                var elem = new TreeElem(null, element, "[" + index + "]: " + title);
+                String title = result.title();
+                Boolean truncated = result.truncated();
+                Integer elements = result.elements();
+                Integer byteSize = result.byteSize();
+                var elem = new TreeElem(null, element, "[" + index + "]: " + title, elements, byteSize);
 
                 if (element.isObject() || element.isArray()) {
                     child = new TreeItem<>(elem);
@@ -287,7 +387,7 @@ public class TreeViewController {
                 } else {
                     if (truncated) {
                         child = new TreeItem<>(elem);
-                        var childElem = new TreeElem(null, element, element.asText());
+                        var childElem = new TreeElem(null, element, element.asText(), elements, byteSize);
 
                         var rest = new TreeItem<>(childElem);
                         child.getChildren().add(rest);
@@ -431,4 +531,24 @@ public class TreeViewController {
         tree.scrollTo(tree.getRow(next));
     }
 
+    public static String humanReadableSize(long bytes) {
+        if (bytes < 1024) return bytes + " B";
+
+        int exp = (int) (Math.log(bytes) / Math.log(1024));
+        String unit = "KMGTPE".charAt(exp - 1) + "B"; // KB, MB, GB, etc.
+
+        double size = bytes / Math.pow(1024, exp);
+
+        return String.format("%.1f %s", size, unit);
+    }
+
+    public void setShowElements(Boolean newVal) {
+        this.showElements.set(newVal);
+        tree.refresh();
+    }
+
+    public void setShowByteSize(Boolean newVal) {
+        this.showByteSize.set(newVal);
+        tree.refresh();
+    }
 }
