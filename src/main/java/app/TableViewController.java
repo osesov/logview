@@ -4,6 +4,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -47,7 +48,7 @@ public class TableViewController {
     private TreeViewController treeController;
     private DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("u-MM-dd hh:mm:ss");
     private String searchTerm = null;
-    private Map<String, TableColumn<LineBounds, ?>> columnMap = new HashMap<>();
+    private Map<String, TableColumn<LineBounds, ?>> columnMap = new LinkedHashMap<>();
     private TableColumn<LineBounds, String> valueColumn;
     private TableColumn<LineBounds, Long> numberColumn;
     private Set<Integer> disabledFiles = new HashSet<>();

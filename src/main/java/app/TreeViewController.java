@@ -75,6 +75,7 @@ public class TreeViewController {
                 textField.setVisible(true);
                 textField.setOpacity(1.0);
                 textField.setMaxWidth(Double.MAX_VALUE);
+                textField.setEditable(false);
 
 
                 // TextArea

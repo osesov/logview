@@ -12,3 +12,7 @@ mvn dependency:copy-dependencies
 
 
 Currently `mvn compile` populates `target/lib` as well, which can be used for vscode/command line execution.
+
+## install
+
+mvn package produces installable package in `target/jsonl-viewer-<VERSION>.zip`

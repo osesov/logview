@@ -9,7 +9,7 @@
             "name": "MainApp",
             "request": "launch",
             "mainClass": "app.MainApp",
-            "projectName": "jsonl-viewer-javafx",
+            "projectName": "jsonl-viewer",
             "vmArgs": "--add-modules javafx.controls --module-path ${workspaceFolder}/target/lib",
             "preLaunchTask": "compile"
         },
@@ -18,8 +18,8 @@
             "name": "MainApp with agent",
             "request": "launch",
             "mainClass": "app.MainApp",
-            "projectName": "jsonl-viewer-javafx",
-            "vmArgs": "--add-modules javafx.controls --module-path ${workspaceFolder}/target/lib -javaagent:${workspaceFolder}/target/jsonl-viewer-javafx-1.0-SNAPSHOT-agent.jar",
+            "projectName": "jsonl-viewer",
+            "vmArgs": "--add-modules javafx.controls --module-path ${workspaceFolder}/target/lib -javaagent:${workspaceFolder}/target/jsonl-viewer-1.0-SNAPSHOT-agent.jar",
             "preLaunchTask": "compile"
         },
     ]
